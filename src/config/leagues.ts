@@ -2,7 +2,7 @@ export const LEAGUE_CONFIG = {
   name: "Scranton Branch Fantasy Football League",
   shortName: "Scranton Branch FFL",
   commissionerUserId: "739591965980643328",
-  currentSeason: "2025",
+  currentSeason: "2026",
   leagues: [
     {
       id: "1260755589445718016",
