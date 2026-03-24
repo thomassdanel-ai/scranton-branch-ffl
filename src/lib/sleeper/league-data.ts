@@ -96,18 +96,18 @@ export async function getWeekMatchups(leagueId: string, week: number): Promise<M
   if (!matchups.length) return [];
 
   const teamMap = new Map(teams.map((t) => [t.rosterId, t]));
-  const grouped = new Map<number, typeof matchups>();
+  const grouped: Record<number, typeof matchups> = {};
 
   for (const m of matchups) {
     if (!m.matchup_id) continue;
-    const group = grouped.get(m.matchup_id) ?? [];
-    group.push(m);
-    grouped.set(m.matchup_id, group);
+    if (!grouped[m.matchup_id]) grouped[m.matchup_id] = [];
+    grouped[m.matchup_id].push(m);
   }
 
   const pairs: MatchupPair[] = [];
 
-  for (const [matchupId, sides] of grouped) {
+  for (const matchupId of Object.keys(grouped)) {
+    const sides = grouped[Number(matchupId)];
     if (sides.length < 2) continue;
     const [a, b] = sides;
     const teamA = teamMap.get(a.roster_id);
@@ -115,7 +115,7 @@ export async function getWeekMatchups(leagueId: string, week: number): Promise<M
     if (!teamA || !teamB) continue;
 
     pairs.push({
-      matchupId,
+      matchupId: Number(matchupId),
       team1: {
         team: teamA,
         points: a.points ?? 0,
