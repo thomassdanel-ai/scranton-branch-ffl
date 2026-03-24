@@ -1,0 +1,42 @@
+import { notFound } from 'next/navigation';
+import { findLeagueConfig } from '@/lib/sleeper/league-data';
+import LeagueNav from '@/components/leagues/LeagueNav';
+import type { Metadata } from 'next';
+
+interface Props {
+  params: { leagueId: string };
+  children: React.ReactNode;
+}
+
+export async function generateMetadata({ params }: { params: { leagueId: string } }): Promise<Metadata> {
+  const league = findLeagueConfig(params.leagueId);
+  if (!league) return {};
+  return {
+    title: `${league.name} League`,
+  };
+}
+
+export default function LeagueLayout({ params, children }: Props) {
+  const league = findLeagueConfig(params.leagueId);
+  if (!league) notFound();
+
+  return (
+    <div className="space-y-6">
+      {/* League header */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <div
+            className="w-1 h-8 rounded-full"
+            style={{ backgroundColor: league.color }}
+          />
+          <h1 className="text-2xl font-extrabold text-white">
+            {league.name} League
+          </h1>
+        </div>
+        <LeagueNav leagueId={params.leagueId} leagueColor={league.color} />
+      </div>
+
+      {children}
+    </div>
+  );
+}
