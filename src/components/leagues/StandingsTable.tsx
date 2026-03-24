@@ -7,7 +7,7 @@ interface Props {
 
 function formatStreak(streak: string | null) {
   if (!streak) return <span className="text-text-muted">—</span>;
-  const isWin = streak.toLowerCase().startsWith('w');
+  const isWin = streak.toUpperCase().includes('W');
   return (
     <span className={isWin ? 'text-accent-green' : 'text-accent-red'}>
       {streak.toUpperCase()}
