@@ -181,7 +181,7 @@ export default function BracketView({ bracket }: Props) {
                 <h3 className={`text-xs font-bold uppercase tracking-wider text-center ${
                   isFinal ? 'text-accent-gold' : 'text-text-muted'
                 }`}>
-                  {roundMatchups[0]?.label.replace(/\s\d+$/, '') || `Round ${roundNum}`}
+                  {roundNum === 1 ? 'Week 1 — Play-In' : roundNum === 2 ? 'Week 2 — League Champs' : roundNum === 3 ? 'Week 3 — Championship' : `Round ${roundNum}`}
                 </h3>
                 {roundMatchups.map((matchup) => (
                   <MatchupBox

@@ -55,19 +55,36 @@ interface RankedTeam {
   rank: number;
 }
 
-interface ManualTeamEntry {
+// Manual entry: just team name per slot
+interface ManualSlot {
   teamName: string;
-  leagueName: string;
-  leagueColor: string;
-  wins: string;
-  losses: string;
-  pointsFor: string;
 }
 
 const LEAGUE_OPTIONS = [
   { name: 'Sales', color: '#3b82f6' },
   { name: 'Accounting', color: '#10b981' },
 ];
+
+/**
+ * Generate the Scranton Branch bracket structure:
+ * - Week 1: #2 vs #3 within each league (seeds 1 on bye)
+ * - Week 2: #1 vs Week 1 winner within each league (league championship)
+ * - Week 3: Sales champ vs Accounting champ (the final)
+ *
+ * Seeds: Sales #1=1, Sales #2=2, Sales #3=3, Acct #1=4, Acct #2=5, Acct #3=6
+ */
+function generateLeagueBracket(): BracketMatchup[] {
+  return [
+    // Week 1: League play-in (2 vs 3 within each league)
+    { id: 'W1-SALES', round: 1, position: 0, team1Seed: 2, team2Seed: 3, team1Score: null, team2Score: null, winningSeed: null, label: 'Sales Play-In (#2 vs #3)' },
+    { id: 'W1-ACCT', round: 1, position: 1, team1Seed: 5, team2Seed: 6, team1Score: null, team2Score: null, winningSeed: null, label: 'Accounting Play-In (#2 vs #3)' },
+    // Week 2: League championship (1 vs play-in winner)
+    { id: 'W2-SALES', round: 2, position: 0, team1Seed: 1, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Sales Championship (#1 vs Play-In Winner)' },
+    { id: 'W2-ACCT', round: 2, position: 1, team1Seed: 4, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Accounting Championship (#1 vs Play-In Winner)' },
+    // Week 3: The final
+    { id: 'FINAL', round: 3, position: 0, team1Seed: null, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Scranton Branch Championship' },
+  ];
+}
 
 export default function BracketManagerPage() {
   const router = useRouter();
@@ -77,8 +94,13 @@ export default function BracketManagerPage() {
   const [bracket, setBracket] = useState<BracketData | null>(null);
   const [rankings, setRankings] = useState<RankedTeam[]>([]);
   const [step, setStep] = useState<'setup' | 'manual' | 'manage'>('setup');
-  const [teamCount, setTeamCount] = useState(6);
-  const [manualTeams, setManualTeams] = useState<ManualTeamEntry[]>([]);
+  const [seasonYear, setSeasonYear] = useState(new Date().getFullYear().toString());
+
+  // Manual entry: 6 slots (Sales #1, #2, #3, Acct #1, #2, #3)
+  const [manualSlots, setManualSlots] = useState<ManualSlot[]>([
+    { teamName: '' }, { teamName: '' }, { teamName: '' },
+    { teamName: '' }, { teamName: '' }, { teamName: '' },
+  ]);
 
   useEffect(() => {
     Promise.all([
@@ -104,61 +126,46 @@ export default function BracketManagerPage() {
       return;
     }
 
-    const qualifiersPerLeague = 3; // from config
     const leagueTeams: Record<string, RankedTeam[]> = {};
-
-    // Group by league
     for (const r of rankings) {
       if (!leagueTeams[r.leagueId]) leagueTeams[r.leagueId] = [];
       leagueTeams[r.leagueId].push(r);
     }
 
-    // Take top N from each league (already sorted by power score)
-    const qualifiers: RankedTeam[] = [];
-    for (const leagueId of Object.keys(leagueTeams)) {
-      const leagueRanked = leagueTeams[leagueId];
-      qualifiers.push(...leagueRanked.slice(0, qualifiersPerLeague));
+    // Take top 3 from each league, keep them in league order
+    const teams: BracketTeam[] = [];
+    let seed = 1;
+
+    for (const league of LEAGUE_OPTIONS) {
+      const leagueId = Object.keys(leagueTeams).find((id) => {
+        const first = leagueTeams[id][0];
+        return first?.leagueName === league.name;
+      });
+      if (!leagueId) continue;
+      const top3 = leagueTeams[leagueId].slice(0, 3);
+      for (const q of top3) {
+        teams.push({
+          rosterId: q.team.rosterId,
+          leagueId: q.leagueId,
+          leagueName: q.leagueName,
+          leagueColor: q.leagueColor,
+          teamName: q.team.teamName ?? q.team.displayName,
+          displayName: q.team.displayName,
+          avatar: q.team.avatar,
+          wins: q.team.wins,
+          losses: q.team.losses,
+          pointsFor: q.team.pointsFor,
+          seed: seed++,
+        });
+      }
     }
 
-    // Sort all qualifiers by power score for overall seeding
-    qualifiers.sort((a, b) => b.powerScore - a.powerScore);
-
-    const teams: BracketTeam[] = qualifiers.map((q, i) => ({
-      rosterId: q.team.rosterId,
-      leagueId: q.leagueId,
-      leagueName: q.leagueName,
-      leagueColor: q.leagueColor,
-      teamName: q.team.teamName ?? q.team.displayName,
-      displayName: q.team.displayName,
-      avatar: q.team.avatar,
-      wins: q.team.wins,
-      losses: q.team.losses,
-      pointsFor: q.team.pointsFor,
-      seed: i + 1,
-    }));
-
-    // Generate bracket structure
-    const teamCount = teams.length;
-    const res = await fetch('/api/admin/bracket/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamCount }),
-    });
-
-    let matchups: BracketMatchup[];
-    if (res.ok) {
-      const data = await res.json();
-      matchups = data.matchups;
-    } else {
-      // Fallback: generate client-side for simple case (6 teams)
-      matchups = generateMatchupsClientSide(teamCount);
-    }
-
+    const matchups = generateLeagueBracket();
     const newBracket: BracketData = {
-      seasonYear: new Date().getFullYear().toString(),
+      seasonYear,
       teams,
       matchups,
-      rounds: Math.max(...matchups.map((m) => m.round)),
+      rounds: 3,
       status: 'pending',
       champion: null,
     };
@@ -168,88 +175,46 @@ export default function BracketManagerPage() {
     setMessage('Bracket seeded from power rankings! Enter scores and save.');
   }
 
-  function startManualSetup() {
-    const entries: ManualTeamEntry[] = [];
-    for (let i = 0; i < teamCount; i++) {
-      entries.push({
-        teamName: '',
-        leagueName: LEAGUE_OPTIONS[0].name,
-        leagueColor: LEAGUE_OPTIONS[0].color,
-        wins: '',
-        losses: '',
-        pointsFor: '',
-      });
-    }
-    setManualTeams(entries);
-    setStep('manual');
-  }
-
-  function updateManualTeam(index: number, field: keyof ManualTeamEntry, value: string) {
-    const updated = [...manualTeams];
-    updated[index] = { ...updated[index], [field]: value };
-    // Sync color when league changes
-    if (field === 'leagueName') {
-      const opt = LEAGUE_OPTIONS.find((o) => o.name === value);
-      if (opt) updated[index].leagueColor = opt.color;
-    }
-    setManualTeams(updated);
-  }
-
   function handleManualCreate() {
-    // Validate
-    for (let i = 0; i < manualTeams.length; i++) {
-      if (!manualTeams[i].teamName.trim()) {
-        setMessage(`Seed #${i + 1} needs a team name.`);
+    for (let i = 0; i < manualSlots.length; i++) {
+      if (!manualSlots[i].teamName.trim()) {
+        const labels = ['Sales #1', 'Sales #2', 'Sales #3', 'Acct #1', 'Acct #2', 'Acct #3'];
+        setMessage(`${labels[i]} needs a team name.`);
         return;
       }
     }
 
-    const teams: BracketTeam[] = manualTeams.map((entry, i) => ({
-      rosterId: i + 1,
-      leagueId: entry.leagueName.toLowerCase(),
-      leagueName: entry.leagueName,
-      leagueColor: entry.leagueColor,
-      teamName: entry.teamName,
-      displayName: entry.teamName,
-      avatar: null,
-      wins: parseInt(entry.wins) || 0,
-      losses: parseInt(entry.losses) || 0,
-      pointsFor: parseFloat(entry.pointsFor) || 0,
-      seed: i + 1,
-    }));
+    const teams: BracketTeam[] = manualSlots.map((slot, i) => {
+      const isAcct = i >= 3;
+      const league = isAcct ? LEAGUE_OPTIONS[1] : LEAGUE_OPTIONS[0];
+      return {
+        rosterId: i + 1,
+        leagueId: league.name.toLowerCase(),
+        leagueName: league.name,
+        leagueColor: league.color,
+        teamName: slot.teamName,
+        displayName: slot.teamName,
+        avatar: null,
+        wins: 0,
+        losses: 0,
+        pointsFor: 0,
+        seed: i + 1,
+      };
+    });
 
-    const matchups = generateMatchupsClientSide(teams.length);
-
+    const matchups = generateLeagueBracket();
     const newBracket: BracketData = {
-      seasonYear: new Date().getFullYear().toString(),
+      seasonYear,
       teams,
       matchups,
-      rounds: Math.max(...matchups.map((m) => m.round)),
+      rounds: 3,
       status: 'pending',
       champion: null,
     };
 
     setBracket(newBracket);
     setStep('manage');
-    setMessage('Bracket created! Enter scores and save.');
-  }
-
-  function generateMatchupsClientSide(teamCount: number): BracketMatchup[] {
-    if (teamCount <= 4) {
-      return [
-        { id: 'R1-M1', round: 1, position: 0, team1Seed: 1, team2Seed: 4, team1Score: null, team2Score: null, winningSeed: null, label: 'Semifinal 1' },
-        { id: 'R1-M2', round: 1, position: 1, team1Seed: 2, team2Seed: 3, team1Score: null, team2Score: null, winningSeed: null, label: 'Semifinal 2' },
-        { id: 'FINAL', round: 2, position: 0, team1Seed: null, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Championship' },
-      ];
-    }
-    // 6 teams (most likely: 3 per league x 2 leagues)
-    return [
-      { id: 'R1-M1', round: 1, position: 0, team1Seed: 3, team2Seed: 6, team1Score: null, team2Score: null, winningSeed: null, label: 'Play-In 1' },
-      { id: 'R1-M2', round: 1, position: 1, team1Seed: 4, team2Seed: 5, team1Score: null, team2Score: null, winningSeed: null, label: 'Play-In 2' },
-      { id: 'R2-M1', round: 2, position: 0, team1Seed: 1, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Semifinal 1' },
-      { id: 'R2-M2', round: 2, position: 1, team1Seed: 2, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Semifinal 2' },
-      { id: 'FINAL', round: 3, position: 0, team1Seed: null, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Championship' },
-    ];
+    setMessage('Bracket created! Enter scores for each week and save.');
   }
 
   function updateMatchupScore(matchupId: string, field: 'team1Score' | 'team2Score', value: string) {
@@ -276,8 +241,28 @@ export default function BracketManagerPage() {
       return { ...m, winningSeed };
     });
 
-    // Advance winner to next round
-    updatedMatchups = advanceWinner(updatedMatchups, matchup, winningSeed, bracket.teams.length);
+    // Advance winner based on our specific bracket structure
+    if (matchupId === 'W1-SALES') {
+      // Winner goes to W2-SALES as team2
+      updatedMatchups = updatedMatchups.map((m) =>
+        m.id === 'W2-SALES' ? { ...m, team2Seed: winningSeed } : m
+      );
+    } else if (matchupId === 'W1-ACCT') {
+      // Winner goes to W2-ACCT as team2
+      updatedMatchups = updatedMatchups.map((m) =>
+        m.id === 'W2-ACCT' ? { ...m, team2Seed: winningSeed } : m
+      );
+    } else if (matchupId === 'W2-SALES') {
+      // Sales champ goes to FINAL as team1
+      updatedMatchups = updatedMatchups.map((m) =>
+        m.id === 'FINAL' ? { ...m, team1Seed: winningSeed } : m
+      );
+    } else if (matchupId === 'W2-ACCT') {
+      // Acct champ goes to FINAL as team2
+      updatedMatchups = updatedMatchups.map((m) =>
+        m.id === 'FINAL' ? { ...m, team2Seed: winningSeed } : m
+      );
+    }
 
     // Check if champion
     const finalMatch = updatedMatchups.find((m) => m.id === 'FINAL');
@@ -294,39 +279,6 @@ export default function BracketManagerPage() {
       matchups: updatedMatchups,
       champion,
       status: isComplete ? 'complete' : hasAnyResult ? 'in_progress' : 'pending',
-    });
-  }
-
-  function advanceWinner(
-    matchups: BracketMatchup[],
-    completedMatchup: BracketMatchup,
-    winningSeed: number | null,
-    teamCount: number,
-  ): BracketMatchup[] {
-    if (!winningSeed) return matchups;
-
-    // Determine the next round matchup this winner feeds into
-    const currentRound = completedMatchup.round;
-    const currentPos = completedMatchup.position;
-
-    // Find the next round matchup
-    const nextRound = currentRound + 1;
-    const nextPos = Math.floor(currentPos / 2);
-    const isTopSlot = currentPos % 2 === 0;
-
-    const nextMatchup = matchups.find(
-      (m) => m.round === nextRound && m.position === nextPos
-    );
-
-    if (!nextMatchup) return matchups; // Already at final
-
-    return matchups.map((m) => {
-      if (m.id !== nextMatchup.id) return m;
-      if (isTopSlot) {
-        return { ...m, team1Seed: winningSeed };
-      } else {
-        return { ...m, team2Seed: winningSeed };
-      }
     });
   }
 
@@ -350,7 +302,7 @@ export default function BracketManagerPage() {
     setSaving(false);
   }
 
-  function getTeamBySeeed(seed: number | null): BracketTeam | null {
+  function getTeamBySeed(seed: number | null): BracketTeam | null {
     if (!seed || !bracket) return null;
     return bracket.teams.find((t) => t.seed === seed) ?? null;
   }
@@ -363,13 +315,14 @@ export default function BracketManagerPage() {
     );
   }
 
+  // --- SETUP SCREEN ---
   if (step === 'setup' && !bracket) {
     return (
       <div className="space-y-6 max-w-2xl">
         <div>
           <h1 className="text-2xl font-extrabold text-white">Bracket Manager</h1>
           <p className="text-text-secondary text-sm mt-1">
-            Seed the championship bracket and input matchup results.
+            3-week playoff: league play-in, league championship, then Sales vs Accounting final.
           </p>
         </div>
 
@@ -377,8 +330,7 @@ export default function BracketManagerPage() {
         <div className="glass-card p-6 space-y-4">
           <h2 className="font-bold text-white">Option 1: Auto-Seed from Rankings</h2>
           <p className="text-text-secondary text-sm">
-            Seed the bracket automatically from the current power rankings.
-            Top 3 from each league will qualify.
+            Pull the top 3 from each league based on current power rankings.
           </p>
           <button
             onClick={handleSeedFromRankings}
@@ -391,28 +343,15 @@ export default function BracketManagerPage() {
 
         {/* Option 2: Manual */}
         <div className="glass-card p-6 space-y-4">
-          <h2 className="font-bold text-white">Option 2: Manual Setup</h2>
+          <h2 className="font-bold text-white">Option 2: Manual Entry</h2>
           <p className="text-text-secondary text-sm">
-            Manually enter the playoff teams, their seeds, and scores.
-            Use this for past seasons or custom brackets.
+            Type in the 6 playoff team names. Use this for past seasons.
           </p>
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-text-secondary">Number of teams:</label>
-            <select
-              value={teamCount}
-              onChange={(e) => setTeamCount(parseInt(e.target.value))}
-              className="px-3 py-1.5 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
-            >
-              <option value={4}>4 teams</option>
-              <option value={6}>6 teams (default)</option>
-              <option value={8}>8 teams</option>
-            </select>
-          </div>
           <button
-            onClick={startManualSetup}
+            onClick={() => setStep('manual')}
             className="px-6 py-2 bg-accent-purple/80 text-white rounded-lg font-semibold hover:bg-accent-purple transition-colors"
           >
-            Set Up Manually
+            Enter Teams Manually
           </button>
         </div>
 
@@ -425,83 +364,89 @@ export default function BracketManagerPage() {
     );
   }
 
+  // --- MANUAL ENTRY SCREEN ---
   if (step === 'manual') {
     return (
       <div className="space-y-6 max-w-2xl">
         <div>
           <h1 className="text-2xl font-extrabold text-white">Manual Bracket Setup</h1>
           <p className="text-text-secondary text-sm mt-1">
-            Enter the {teamCount} playoff teams in seed order (#1 = best seed).
+            Enter the top 3 teams from each league in seed order.
           </p>
         </div>
 
-        {manualTeams.map((entry, i) => (
-          <div key={i} className="glass-card p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-extrabold text-text-muted w-8">#{i + 1}</span>
-              <span className="text-sm text-text-secondary">Seed</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-text-muted block mb-1">Team Name</label>
-                <input
-                  type="text"
-                  value={entry.teamName}
-                  onChange={(e) => updateManualTeam(i, 'teamName', e.target.value)}
-                  placeholder="e.g. Bed, Bath and Bijan"
-                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted block mb-1">League</label>
-                <select
-                  value={entry.leagueName}
-                  onChange={(e) => updateManualTeam(i, 'leagueName', e.target.value)}
-                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
-                >
-                  {LEAGUE_OPTIONS.map((opt) => (
-                    <option key={opt.name} value={opt.name}>{opt.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs text-text-muted block mb-1">Wins</label>
-                <input
-                  type="number"
-                  value={entry.wins}
-                  onChange={(e) => updateManualTeam(i, 'wins', e.target.value)}
-                  placeholder="10"
-                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted block mb-1">Losses</label>
-                <input
-                  type="number"
-                  value={entry.losses}
-                  onChange={(e) => updateManualTeam(i, 'losses', e.target.value)}
-                  placeholder="4"
-                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted block mb-1">Total PF</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={entry.pointsFor}
-                  onChange={(e) => updateManualTeam(i, 'pointsFor', e.target.value)}
-                  placeholder="1523.50"
-                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
-                />
-              </div>
-            </div>
+        {/* Season year */}
+        <div className="glass-card p-4">
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-text-secondary">Season Year:</label>
+            <input
+              type="text"
+              value={seasonYear}
+              onChange={(e) => setSeasonYear(e.target.value)}
+              className="w-24 px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+            />
           </div>
-        ))}
+        </div>
+
+        {/* Sales league */}
+        <div className="glass-card p-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: LEAGUE_OPTIONS[0].color }} />
+            <h2 className="font-bold text-white">Sales League</h2>
+          </div>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className="text-sm font-bold text-text-muted w-6">#{i + 1}</span>
+              <input
+                type="text"
+                value={manualSlots[i].teamName}
+                onChange={(e) => {
+                  const updated = [...manualSlots];
+                  updated[i] = { teamName: e.target.value };
+                  setManualSlots(updated);
+                }}
+                placeholder={i === 0 ? '#1 seed (bye week 1)' : `#${i + 1} seed`}
+                className="flex-1 px-3 py-2 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+              />
+              {i === 0 && <span className="text-xs text-accent-gold">BYE</span>}
+            </div>
+          ))}
+        </div>
+
+        {/* Accounting league */}
+        <div className="glass-card p-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: LEAGUE_OPTIONS[1].color }} />
+            <h2 className="font-bold text-white">Accounting League</h2>
+          </div>
+          {[3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className="text-sm font-bold text-text-muted w-6">#{i - 2}</span>
+              <input
+                type="text"
+                value={manualSlots[i].teamName}
+                onChange={(e) => {
+                  const updated = [...manualSlots];
+                  updated[i] = { teamName: e.target.value };
+                  setManualSlots(updated);
+                }}
+                placeholder={i === 3 ? '#1 seed (bye week 1)' : `#${i - 2} seed`}
+                className="flex-1 px-3 py-2 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+              />
+              {i === 3 && <span className="text-xs text-accent-gold">BYE</span>}
+            </div>
+          ))}
+        </div>
+
+        {/* Bracket explanation */}
+        <div className="glass-card p-4 bg-white/5">
+          <p className="text-xs text-text-muted leading-relaxed">
+            <strong className="text-text-secondary">How the bracket works:</strong><br />
+            Week 1: #2 vs #3 in each league (#1 seeds on bye)<br />
+            Week 2: #1 vs play-in winner in each league (league championship)<br />
+            Week 3: Sales champ vs Accounting champ (the big one)
+          </p>
+        </div>
 
         <div className="flex items-center gap-4">
           <button
@@ -528,7 +473,14 @@ export default function BracketManagerPage() {
 
   if (!bracket) return null;
 
+  // --- MANAGE SCREEN ---
   // Group matchups by round
+  const roundLabels: Record<number, string> = {
+    1: 'Week 1 — Play-In Round',
+    2: 'Week 2 — League Championships',
+    3: 'Week 3 — Scranton Branch Championship',
+  };
+
   const rounds: Record<number, BracketMatchup[]> = {};
   for (const m of bracket.matchups) {
     if (!rounds[m.round]) rounds[m.round] = [];
@@ -541,7 +493,7 @@ export default function BracketManagerPage() {
       <div>
         <h1 className="text-2xl font-extrabold text-white">Bracket Manager</h1>
         <p className="text-text-secondary text-sm mt-1">
-          Enter scores for each matchup. Confirm the winner to advance them.
+          {bracket.seasonYear} Season — Enter scores for each week, confirm winners to advance.
         </p>
       </div>
 
@@ -566,13 +518,13 @@ export default function BracketManagerPage() {
       {/* Matchup editor by round */}
       {roundNumbers.map((roundNum) => (
         <div key={roundNum} className="glass-card p-6 space-y-4">
-          <h2 className="font-bold text-white">
-            {rounds[roundNum][0]?.label.replace(/\s\d+$/, '') || `Round ${roundNum}`}
+          <h2 className={`font-bold ${roundNum === 3 ? 'text-accent-gold' : 'text-white'}`}>
+            {roundLabels[roundNum] || `Round ${roundNum}`}
           </h2>
 
           {rounds[roundNum].map((matchup) => {
-            const team1 = getTeamBySeeed(matchup.team1Seed);
-            const team2 = getTeamBySeeed(matchup.team2Seed);
+            const team1 = getTeamBySeed(matchup.team1Seed);
+            const team2 = getTeamBySeed(matchup.team2Seed);
             const canSetWinner = matchup.team1Score !== null && matchup.team2Score !== null
               && matchup.team1Seed !== null && matchup.team2Seed !== null;
 
@@ -584,9 +536,6 @@ export default function BracketManagerPage() {
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      {team1 && (
-                        <span className="text-xs text-text-muted">#{team1.seed}</span>
-                      )}
                       <span className="text-sm font-semibold text-white truncate">
                         {team1?.teamName ?? (matchup.team1Seed ? `Seed #${matchup.team1Seed}` : 'TBD')}
                       </span>
@@ -617,9 +566,6 @@ export default function BracketManagerPage() {
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      {team2 && (
-                        <span className="text-xs text-text-muted">#{team2.seed}</span>
-                      )}
                       <span className="text-sm font-semibold text-white truncate">
                         {team2?.teamName ?? (matchup.team2Seed ? `Seed #${matchup.team2Seed}` : 'TBD')}
                       </span>
@@ -658,7 +604,7 @@ export default function BracketManagerPage() {
                 )}
                 {matchup.winningSeed !== null && (
                   <p className="text-xs text-accent-green">
-                    Winner: {getTeamBySeeed(matchup.winningSeed)?.teamName ?? `Seed #${matchup.winningSeed}`}
+                    Winner: {getTeamBySeed(matchup.winningSeed)?.teamName ?? `Seed #${matchup.winningSeed}`}
                   </p>
                 )}
               </div>
