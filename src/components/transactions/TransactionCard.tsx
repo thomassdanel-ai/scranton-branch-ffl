@@ -1,7 +1,10 @@
 import type { EnrichedTransaction } from '@/lib/transactions/fetch';
 
+type PlayerLookup = Record<string, { player_id: string; full_name: string; position: string; team: string | null }>;
+
 type Props = {
   transaction: EnrichedTransaction;
+  playerLookup: PlayerLookup;
 };
 
 const TYPE_STYLES: Record<string, { label: string; bg: string; text: string }> = {
@@ -10,8 +13,11 @@ const TYPE_STYLES: Record<string, { label: string; bg: string; text: string }> =
   free_agent: { label: 'Free Agent', bg: 'bg-accent-green/20', text: 'text-accent-green' },
 };
 
-function formatPlayerId(playerId: string): string {
-  return `Player #${playerId}`;
+function formatPlayerName(playerId: string, playerLookup: PlayerLookup): string {
+  const player = playerLookup[playerId];
+  if (!player) return `#${playerId}`;
+  const team = player.team ? ` (${player.team})` : '';
+  return `${player.full_name}${team}`;
 }
 
 function formatTimestamp(ms: number): string {
@@ -44,7 +50,7 @@ function getTeamName(
   return team.teamName || team.displayName;
 }
 
-function TradeView({ transaction }: Props) {
+function TradeView({ transaction, playerLookup }: Props) {
   // Group adds and drops by roster_id
   const rosterAdds: Record<number, string[]> = {};
   const rosterDrops: Record<number, string[]> = {};
@@ -80,13 +86,13 @@ function TradeView({ transaction }: Props) {
             {(rosterAdds[rosterId] || []).map((pid) => (
               <div key={`add-${pid}`} className="flex items-center gap-2 text-sm">
                 <span className="text-accent-green text-xs font-bold">+ ADD</span>
-                <span className="stat text-text-secondary">{formatPlayerId(pid)}</span>
+                <span className="stat text-text-secondary">{formatPlayerName(pid, playerLookup)}</span>
               </div>
             ))}
             {(rosterDrops[rosterId] || []).map((pid) => (
               <div key={`drop-${pid}`} className="flex items-center gap-2 text-sm">
                 <span className="text-accent-red text-xs font-bold">- DROP</span>
-                <span className="stat text-text-secondary">{formatPlayerId(pid)}</span>
+                <span className="stat text-text-secondary">{formatPlayerName(pid, playerLookup)}</span>
               </div>
             ))}
           </div>
@@ -107,7 +113,7 @@ function TradeView({ transaction }: Props) {
   );
 }
 
-function WaiverFreeAgentView({ transaction }: Props) {
+function WaiverFreeAgentView({ transaction, playerLookup }: Props) {
   const creatorRosterId = transaction.roster_ids[0];
   const adds = transaction.adds ? Object.entries(transaction.adds) : [];
   const drops = transaction.drops ? Object.entries(transaction.drops) : [];
@@ -121,13 +127,13 @@ function WaiverFreeAgentView({ transaction }: Props) {
         {adds.map(([pid]) => (
           <div key={`add-${pid}`} className="flex items-center gap-2 text-sm">
             <span className="text-accent-green text-xs font-bold">+ ADD</span>
-            <span className="stat text-text-secondary">{formatPlayerId(pid)}</span>
+            <span className="stat text-text-secondary">{formatPlayerName(pid, playerLookup)}</span>
           </div>
         ))}
         {drops.map(([pid]) => (
           <div key={`drop-${pid}`} className="flex items-center gap-2 text-sm">
             <span className="text-accent-red text-xs font-bold">- DROP</span>
-            <span className="stat text-text-secondary">{formatPlayerId(pid)}</span>
+            <span className="stat text-text-secondary">{formatPlayerName(pid, playerLookup)}</span>
           </div>
         ))}
       </div>
@@ -140,7 +146,7 @@ function WaiverFreeAgentView({ transaction }: Props) {
   );
 }
 
-export default function TransactionCard({ transaction }: Props) {
+export default function TransactionCard({ transaction, playerLookup }: Props) {
   const typeStyle = TYPE_STYLES[transaction.type] || TYPE_STYLES.free_agent;
 
   return (
@@ -179,9 +185,9 @@ export default function TransactionCard({ transaction }: Props) {
 
       {/* Body */}
       {transaction.type === 'trade' ? (
-        <TradeView transaction={transaction} />
+        <TradeView transaction={transaction} playerLookup={playerLookup} />
       ) : (
-        <WaiverFreeAgentView transaction={transaction} />
+        <WaiverFreeAgentView transaction={transaction} playerLookup={playerLookup} />
       )}
     </div>
   );

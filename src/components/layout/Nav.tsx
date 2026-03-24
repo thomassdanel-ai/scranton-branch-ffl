@@ -9,6 +9,7 @@ const navLinks = [
   { href: '/rankings', label: 'Power Rankings' },
   { href: '/bracket', label: 'Bracket' },
   { href: '/transactions', label: 'Transactions' },
+  { href: '/history', label: 'History' },
   { href: '/recaps', label: 'Recaps' },
 ];
 

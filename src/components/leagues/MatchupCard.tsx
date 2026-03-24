@@ -3,9 +3,12 @@
 import { useState } from 'react';
 import type { MatchupPair } from '@/lib/sleeper/league-data';
 
+type PlayerLookup = Record<string, { player_id: string; full_name: string; position: string; team: string | null }>;
+
 interface Props {
   matchup: MatchupPair;
   rosterPositions: string[];
+  playerLookup?: PlayerLookup;
 }
 
 function TeamSide({ team, points, isWinner, isComplete }: {
@@ -42,7 +45,7 @@ function TeamSide({ team, points, isWinner, isComplete }: {
   );
 }
 
-export default function MatchupCard({ matchup, rosterPositions }: Props) {
+export default function MatchupCard({ matchup, rosterPositions, playerLookup }: Props) {
   const [expanded, setExpanded] = useState(false);
   const { team1, team2 } = matchup;
   const isComplete = team1.points > 0 || team2.points > 0;
@@ -79,11 +82,13 @@ export default function MatchupCard({ matchup, rosterPositions }: Props) {
               starters={team1.starters}
               startersPoints={team1.startersPoints}
               positions={rosterPositions}
+              playerLookup={playerLookup}
             />
             <StarterList
               starters={team2.starters}
               startersPoints={team2.startersPoints}
               positions={rosterPositions}
+              playerLookup={playerLookup}
             />
           </div>
         </div>
@@ -92,13 +97,22 @@ export default function MatchupCard({ matchup, rosterPositions }: Props) {
   );
 }
 
-function StarterList({ starters, startersPoints, positions }: {
+function StarterList({ starters, startersPoints, positions, playerLookup }: {
   starters: string[];
   startersPoints: number[];
   positions: string[];
+  playerLookup?: PlayerLookup;
 }) {
   if (!starters.length) {
     return <p className="text-text-muted text-xs">No lineup data</p>;
+  }
+
+  function getPlayerDisplay(playerId: string): string {
+    if (playerId === '0') return 'Empty';
+    if (!playerLookup) return playerId;
+    const player = playerLookup[playerId];
+    if (!player) return `#${playerId}`;
+    return player.full_name;
   }
 
   return (
@@ -109,7 +123,7 @@ function StarterList({ starters, startersPoints, positions }: {
             {positions[i] ?? 'BN'}
           </span>
           <span className="text-text-secondary truncate flex-1 mx-2">
-            {playerId === '0' ? 'Empty' : playerId}
+            {getPlayerDisplay(playerId)}
           </span>
           <span className="stat text-white shrink-0">
             {startersPoints[i]?.toFixed(2) ?? '0.00'}

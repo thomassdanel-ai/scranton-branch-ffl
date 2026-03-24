@@ -1,6 +1,7 @@
 import { getAllTransactions } from '@/lib/transactions/fetch';
 import { LEAGUE_CONFIG } from '@/config/leagues';
 import TransactionsFeed from '@/components/transactions/TransactionsFeed';
+import { getPlayerLookup } from '@/lib/players/cache';
 
 export const metadata = {
   title: 'Transactions | Scranton Branch FFL',
@@ -8,7 +9,10 @@ export const metadata = {
 };
 
 export default async function TransactionsPage() {
-  const transactions = await getAllTransactions();
+  const [transactions, playerLookup] = await Promise.all([
+    getAllTransactions(),
+    getPlayerLookup(),
+  ]);
 
   const leagues = LEAGUE_CONFIG.leagues.map((l) => ({
     id: l.id,
@@ -28,7 +32,7 @@ export default async function TransactionsPage() {
         </p>
       </div>
 
-      <TransactionsFeed transactions={transactions} leagues={leagues} />
+      <TransactionsFeed transactions={transactions} leagues={leagues} playerLookup={playerLookup} />
     </div>
   );
 }

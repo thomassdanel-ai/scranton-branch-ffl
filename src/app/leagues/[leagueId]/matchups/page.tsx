@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { findLeagueConfig, getWeekMatchups, getLeagueRosterPositions, getLastPlayedWeek } from '@/lib/sleeper/league-data';
 import { getNFLState } from '@/lib/sleeper/api';
+import { getPlayerLookup } from '@/lib/players/cache';
 import WeekSelector from '@/components/leagues/WeekSelector';
 import MatchupCard from '@/components/leagues/MatchupCard';
 
@@ -19,9 +20,10 @@ export default async function MatchupsPage({ params, searchParams }: Props) {
     ? nflState.week
     : await getLastPlayedWeek(params.leagueId);
   const week = Number(searchParams.week) || maxWeek;
-  const [matchups, rosterPositions] = await Promise.all([
+  const [matchups, rosterPositions, playerLookup] = await Promise.all([
     getWeekMatchups(params.leagueId, week),
     getLeagueRosterPositions(params.leagueId),
+    getPlayerLookup(),
   ]);
 
   return (
@@ -47,6 +49,7 @@ export default async function MatchupsPage({ params, searchParams }: Props) {
               key={matchup.matchupId}
               matchup={matchup}
               rosterPositions={rosterPositions}
+              playerLookup={playerLookup}
             />
           ))}
         </div>

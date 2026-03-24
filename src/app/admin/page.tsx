@@ -76,6 +76,16 @@ export default function AdminPage() {
           <p className="text-text-muted text-sm">Update league IDs, switch seasons</p>
         </Link>
 
+        <Link href="/admin/bracket" className="glass-card p-6 hover:bg-white/5 transition-colors">
+          <h2 className="font-bold text-white mb-1">Bracket Manager</h2>
+          <p className="text-text-muted text-sm">Seed bracket, input matchup results</p>
+        </Link>
+
+        <Link href="/admin/archive" className="glass-card p-6 hover:bg-white/5 transition-colors">
+          <h2 className="font-bold text-white mb-1">Archive Season</h2>
+          <p className="text-text-muted text-sm">Snapshot season for historical record</p>
+        </Link>
+
         <div className="glass-card p-6 opacity-50">
           <h2 className="font-bold text-white mb-1">Announcements</h2>
           <p className="text-text-muted text-sm">Coming in Phase 4</p>
@@ -84,11 +94,6 @@ export default function AdminPage() {
         <div className="glass-card p-6 opacity-50">
           <h2 className="font-bold text-white mb-1">Newsletter</h2>
           <p className="text-text-muted text-sm">Coming in Phase 4</p>
-        </div>
-
-        <div className="glass-card p-6 opacity-50">
-          <h2 className="font-bold text-white mb-1">Bracket Manager</h2>
-          <p className="text-text-muted text-sm">Coming in Phase 3</p>
         </div>
       </div>
     </div>

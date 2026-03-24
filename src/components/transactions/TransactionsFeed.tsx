@@ -4,9 +4,12 @@ import { useState, useMemo } from 'react';
 import TransactionCard from './TransactionCard';
 import type { EnrichedTransaction } from '@/lib/transactions/fetch';
 
+type PlayerLookup = Record<string, { player_id: string; full_name: string; position: string; team: string | null }>;
+
 type Props = {
   transactions: EnrichedTransaction[];
   leagues: Array<{ id: string; name: string; shortName: string; color: string }>;
+  playerLookup: PlayerLookup;
 };
 
 const TYPE_FILTERS = [
@@ -16,7 +19,7 @@ const TYPE_FILTERS = [
   { value: 'free_agent', label: 'Free Agents' },
 ] as const;
 
-export default function TransactionsFeed({ transactions, leagues }: Props) {
+export default function TransactionsFeed({ transactions, leagues, playerLookup }: Props) {
   const [selectedLeague, setSelectedLeague] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<string>('all');
 
@@ -101,7 +104,7 @@ export default function TransactionsFeed({ transactions, leagues }: Props) {
       ) : (
         <div className="space-y-3">
           {filtered.map((txn) => (
-            <TransactionCard key={`${txn.leagueId}-${txn.transaction_id}`} transaction={txn} />
+            <TransactionCard key={`${txn.leagueId}-${txn.transaction_id}`} transaction={txn} playerLookup={playerLookup} />
           ))}
         </div>
       )}
