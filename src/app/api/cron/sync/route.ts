@@ -48,12 +48,9 @@ async function getOrCreateSeasonId(supabase: ReturnType<typeof createServiceClie
 }
 
 export async function GET(req: NextRequest) {
-  // Verify cron secret
+  const secret = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization');
-  if (
-    process.env.CRON_SECRET &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -121,9 +118,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('Cron sync error:', err);
-    return NextResponse.json(
-      { error: 'Sync failed', detail: String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Sync failed' }, { status: 500 });
   }
 }

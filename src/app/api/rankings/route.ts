@@ -8,9 +8,7 @@ export async function GET() {
     const rankings = await computePowerRankings();
     return NextResponse.json({ rankings });
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to compute rankings', detail: String(error) },
-      { status: 500 }
-    );
+    console.error('Rankings error:', error);
+    return NextResponse.json({ error: 'Failed to compute rankings' }, { status: 500 });
   }
 }

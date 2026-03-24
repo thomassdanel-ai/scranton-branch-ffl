@@ -11,8 +11,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { leagueId, week } = body as { leagueId: string; week: number };
 
-  if (!leagueId || !week) {
-    return NextResponse.json({ error: 'leagueId and week are required' }, { status: 400 });
+  if (!leagueId || !week || !/^\d+$/.test(leagueId) || typeof week !== 'number' || week < 1 || week > 18) {
+    return NextResponse.json({ error: 'Invalid leagueId or week' }, { status: 400 });
   }
 
   try {
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ scores });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: `Failed to fetch scores: ${message}` }, { status: 500 });
+    console.error('Score fetch error:', err);
+    return NextResponse.json({ error: 'Failed to fetch scores' }, { status: 500 });
   }
 }
