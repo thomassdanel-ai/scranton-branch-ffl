@@ -55,6 +55,20 @@ interface RankedTeam {
   rank: number;
 }
 
+interface ManualTeamEntry {
+  teamName: string;
+  leagueName: string;
+  leagueColor: string;
+  wins: string;
+  losses: string;
+  pointsFor: string;
+}
+
+const LEAGUE_OPTIONS = [
+  { name: 'Sales', color: '#3b82f6' },
+  { name: 'Accounting', color: '#10b981' },
+];
+
 export default function BracketManagerPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -62,7 +76,9 @@ export default function BracketManagerPage() {
   const [message, setMessage] = useState('');
   const [bracket, setBracket] = useState<BracketData | null>(null);
   const [rankings, setRankings] = useState<RankedTeam[]>([]);
-  const [step, setStep] = useState<'setup' | 'manage'>('setup');
+  const [step, setStep] = useState<'setup' | 'manual' | 'manage'>('setup');
+  const [teamCount, setTeamCount] = useState(6);
+  const [manualTeams, setManualTeams] = useState<ManualTeamEntry[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -150,6 +166,72 @@ export default function BracketManagerPage() {
     setBracket(newBracket);
     setStep('manage');
     setMessage('Bracket seeded from power rankings! Enter scores and save.');
+  }
+
+  function startManualSetup() {
+    const entries: ManualTeamEntry[] = [];
+    for (let i = 0; i < teamCount; i++) {
+      entries.push({
+        teamName: '',
+        leagueName: LEAGUE_OPTIONS[0].name,
+        leagueColor: LEAGUE_OPTIONS[0].color,
+        wins: '',
+        losses: '',
+        pointsFor: '',
+      });
+    }
+    setManualTeams(entries);
+    setStep('manual');
+  }
+
+  function updateManualTeam(index: number, field: keyof ManualTeamEntry, value: string) {
+    const updated = [...manualTeams];
+    updated[index] = { ...updated[index], [field]: value };
+    // Sync color when league changes
+    if (field === 'leagueName') {
+      const opt = LEAGUE_OPTIONS.find((o) => o.name === value);
+      if (opt) updated[index].leagueColor = opt.color;
+    }
+    setManualTeams(updated);
+  }
+
+  function handleManualCreate() {
+    // Validate
+    for (let i = 0; i < manualTeams.length; i++) {
+      if (!manualTeams[i].teamName.trim()) {
+        setMessage(`Seed #${i + 1} needs a team name.`);
+        return;
+      }
+    }
+
+    const teams: BracketTeam[] = manualTeams.map((entry, i) => ({
+      rosterId: i + 1,
+      leagueId: entry.leagueName.toLowerCase(),
+      leagueName: entry.leagueName,
+      leagueColor: entry.leagueColor,
+      teamName: entry.teamName,
+      displayName: entry.teamName,
+      avatar: null,
+      wins: parseInt(entry.wins) || 0,
+      losses: parseInt(entry.losses) || 0,
+      pointsFor: parseFloat(entry.pointsFor) || 0,
+      seed: i + 1,
+    }));
+
+    const matchups = generateMatchupsClientSide(teams.length);
+
+    const newBracket: BracketData = {
+      seasonYear: new Date().getFullYear().toString(),
+      teams,
+      matchups,
+      rounds: Math.max(...matchups.map((m) => m.round)),
+      status: 'pending',
+      champion: null,
+    };
+
+    setBracket(newBracket);
+    setStep('manage');
+    setMessage('Bracket created! Enter scores and save.');
   }
 
   function generateMatchupsClientSide(teamCount: number): BracketMatchup[] {
@@ -291,8 +373,9 @@ export default function BracketManagerPage() {
           </p>
         </div>
 
+        {/* Option 1: Auto-seed */}
         <div className="glass-card p-6 space-y-4">
-          <h2 className="font-bold text-white">Create Bracket</h2>
+          <h2 className="font-bold text-white">Option 1: Auto-Seed from Rankings</h2>
           <p className="text-text-secondary text-sm">
             Seed the bracket automatically from the current power rankings.
             Top 3 from each league will qualify.
@@ -303,6 +386,135 @@ export default function BracketManagerPage() {
             className="px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
           >
             {rankings.length ? 'Seed from Power Rankings' : 'No Rankings Available'}
+          </button>
+        </div>
+
+        {/* Option 2: Manual */}
+        <div className="glass-card p-6 space-y-4">
+          <h2 className="font-bold text-white">Option 2: Manual Setup</h2>
+          <p className="text-text-secondary text-sm">
+            Manually enter the playoff teams, their seeds, and scores.
+            Use this for past seasons or custom brackets.
+          </p>
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-text-secondary">Number of teams:</label>
+            <select
+              value={teamCount}
+              onChange={(e) => setTeamCount(parseInt(e.target.value))}
+              className="px-3 py-1.5 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+            >
+              <option value={4}>4 teams</option>
+              <option value={6}>6 teams (default)</option>
+              <option value={8}>8 teams</option>
+            </select>
+          </div>
+          <button
+            onClick={startManualSetup}
+            className="px-6 py-2 bg-accent-purple/80 text-white rounded-lg font-semibold hover:bg-accent-purple transition-colors"
+          >
+            Set Up Manually
+          </button>
+        </div>
+
+        {message && (
+          <p className={`text-sm ${message.startsWith('Error') ? 'text-accent-red' : 'text-accent-green'}`}>
+            {message}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (step === 'manual') {
+    return (
+      <div className="space-y-6 max-w-2xl">
+        <div>
+          <h1 className="text-2xl font-extrabold text-white">Manual Bracket Setup</h1>
+          <p className="text-text-secondary text-sm mt-1">
+            Enter the {teamCount} playoff teams in seed order (#1 = best seed).
+          </p>
+        </div>
+
+        {manualTeams.map((entry, i) => (
+          <div key={i} className="glass-card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-extrabold text-text-muted w-8">#{i + 1}</span>
+              <span className="text-sm text-text-secondary">Seed</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-text-muted block mb-1">Team Name</label>
+                <input
+                  type="text"
+                  value={entry.teamName}
+                  onChange={(e) => updateManualTeam(i, 'teamName', e.target.value)}
+                  placeholder="e.g. Bed, Bath and Bijan"
+                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-muted block mb-1">League</label>
+                <select
+                  value={entry.leagueName}
+                  onChange={(e) => updateManualTeam(i, 'leagueName', e.target.value)}
+                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                >
+                  {LEAGUE_OPTIONS.map((opt) => (
+                    <option key={opt.name} value={opt.name}>{opt.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-text-muted block mb-1">Wins</label>
+                <input
+                  type="number"
+                  value={entry.wins}
+                  onChange={(e) => updateManualTeam(i, 'wins', e.target.value)}
+                  placeholder="10"
+                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-muted block mb-1">Losses</label>
+                <input
+                  type="number"
+                  value={entry.losses}
+                  onChange={(e) => updateManualTeam(i, 'losses', e.target.value)}
+                  placeholder="4"
+                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-muted block mb-1">Total PF</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={entry.pointsFor}
+                  onChange={(e) => updateManualTeam(i, 'pointsFor', e.target.value)}
+                  placeholder="1523.50"
+                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleManualCreate}
+            className="px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors"
+          >
+            Create Bracket
+          </button>
+          <button
+            onClick={() => { setStep('setup'); setMessage(''); }}
+            className="px-4 py-2 text-text-secondary hover:text-white transition-colors text-sm"
+          >
+            Back
           </button>
           {message && (
             <p className={`text-sm ${message.startsWith('Error') ? 'text-accent-red' : 'text-accent-green'}`}>
