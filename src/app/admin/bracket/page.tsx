@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { LEAGUE_CONFIG } from '@/config/leagues';
 
 interface BracketTeam {
   rosterId: number;
@@ -36,6 +37,7 @@ interface BracketData {
   rounds: number;
   status: 'pending' | 'in_progress' | 'complete';
   champion: BracketTeam | null;
+  playoffStartWeek?: number;
 }
 
 interface RankedTeam {
@@ -55,33 +57,24 @@ interface RankedTeam {
   rank: number;
 }
 
-// Manual entry: just team name per slot
 interface ManualSlot {
   teamName: string;
+  rosterId?: number;
 }
 
-const LEAGUE_OPTIONS = [
-  { name: 'Sales', color: '#3b82f6' },
-  { name: 'Accounting', color: '#10b981' },
-];
+const LEAGUE_OPTIONS = LEAGUE_CONFIG.leagues.map((l: { id: string; name: string; color: string }) => ({
+  id: l.id,
+  name: l.name,
+  color: l.color,
+}));
 
-/**
- * Generate the Scranton Branch bracket structure:
- * - Week 1: #2 vs #3 within each league (seeds 1 on bye)
- * - Week 2: #1 vs Week 1 winner within each league (league championship)
- * - Week 3: Sales champ vs Accounting champ (the final)
- *
- * Seeds: Sales #1=1, Sales #2=2, Sales #3=3, Acct #1=4, Acct #2=5, Acct #3=6
- */
+// Seeds: Sales #1=1, #2=2, #3=3, Acct #1=4, #2=5, #3=6
 function generateLeagueBracket(): BracketMatchup[] {
   return [
-    // Week 1: League play-in (2 vs 3 within each league)
     { id: 'W1-SALES', round: 1, position: 0, team1Seed: 2, team2Seed: 3, team1Score: null, team2Score: null, winningSeed: null, label: 'Sales Play-In (#2 vs #3)' },
     { id: 'W1-ACCT', round: 1, position: 1, team1Seed: 5, team2Seed: 6, team1Score: null, team2Score: null, winningSeed: null, label: 'Accounting Play-In (#2 vs #3)' },
-    // Week 2: League championship (1 vs play-in winner)
     { id: 'W2-SALES', round: 2, position: 0, team1Seed: 1, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Sales Championship (#1 vs Play-In Winner)' },
     { id: 'W2-ACCT', round: 2, position: 1, team1Seed: 4, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Accounting Championship (#1 vs Play-In Winner)' },
-    // Week 3: The final
     { id: 'FINAL', round: 3, position: 0, team1Seed: null, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Scranton Branch Championship' },
   ];
 }
@@ -96,7 +89,9 @@ export default function BracketManagerPage() {
   const [step, setStep] = useState<'setup' | 'manual' | 'manage'>('setup');
   const [seasonYear, setSeasonYear] = useState(new Date().getFullYear().toString());
 
-  // Manual entry: 6 slots (Sales #1, #2, #3, Acct #1, #2, #3)
+  const [playoffStartWeek, setPlayoffStartWeek] = useState(15);
+  const [pullingScores, setPullingScores] = useState(false);
+
   const [manualSlots, setManualSlots] = useState<ManualSlot[]>([
     { teamName: '' }, { teamName: '' }, { teamName: '' },
     { teamName: '' }, { teamName: '' }, { teamName: '' },
@@ -112,6 +107,9 @@ export default function BracketManagerPage() {
     ]).then(([bracketRes, rankingsRes]) => {
       if (bracketRes?.bracket) {
         setBracket(bracketRes.bracket);
+        if (bracketRes.bracket.playoffStartWeek) {
+          setPlayoffStartWeek(bracketRes.bracket.playoffStartWeek);
+        }
         setStep('manage');
       }
       if (rankingsRes?.rankings) {
@@ -132,7 +130,6 @@ export default function BracketManagerPage() {
       leagueTeams[r.leagueId].push(r);
     }
 
-    // Take top 3 from each league, keep them in league order
     const teams: BracketTeam[] = [];
     let seed = 1;
 
@@ -168,6 +165,7 @@ export default function BracketManagerPage() {
       rounds: 3,
       status: 'pending',
       champion: null,
+      playoffStartWeek,
     };
 
     setBracket(newBracket);
@@ -188,8 +186,8 @@ export default function BracketManagerPage() {
       const isAcct = i >= 3;
       const league = isAcct ? LEAGUE_OPTIONS[1] : LEAGUE_OPTIONS[0];
       return {
-        rosterId: i + 1,
-        leagueId: league.name.toLowerCase(),
+        rosterId: slot.rosterId ?? (i + 1),
+        leagueId: league.id,
         leagueName: league.name,
         leagueColor: league.color,
         teamName: slot.teamName,
@@ -210,6 +208,7 @@ export default function BracketManagerPage() {
       rounds: 3,
       status: 'pending',
       champion: null,
+      playoffStartWeek,
     };
 
     setBracket(newBracket);
@@ -241,30 +240,20 @@ export default function BracketManagerPage() {
       return { ...m, winningSeed };
     });
 
-    // Advance winner based on our specific bracket structure
-    if (matchupId === 'W1-SALES') {
-      // Winner goes to W2-SALES as team2
+    // Advance winner to next round
+    const advancement: Record<string, { target: string; slot: 'team1Seed' | 'team2Seed' }> = {
+      'W1-SALES': { target: 'W2-SALES', slot: 'team2Seed' },
+      'W1-ACCT': { target: 'W2-ACCT', slot: 'team2Seed' },
+      'W2-SALES': { target: 'FINAL', slot: 'team1Seed' },
+      'W2-ACCT': { target: 'FINAL', slot: 'team2Seed' },
+    };
+    const adv = advancement[matchupId];
+    if (adv) {
       updatedMatchups = updatedMatchups.map((m) =>
-        m.id === 'W2-SALES' ? { ...m, team2Seed: winningSeed } : m
-      );
-    } else if (matchupId === 'W1-ACCT') {
-      // Winner goes to W2-ACCT as team2
-      updatedMatchups = updatedMatchups.map((m) =>
-        m.id === 'W2-ACCT' ? { ...m, team2Seed: winningSeed } : m
-      );
-    } else if (matchupId === 'W2-SALES') {
-      // Sales champ goes to FINAL as team1
-      updatedMatchups = updatedMatchups.map((m) =>
-        m.id === 'FINAL' ? { ...m, team1Seed: winningSeed } : m
-      );
-    } else if (matchupId === 'W2-ACCT') {
-      // Acct champ goes to FINAL as team2
-      updatedMatchups = updatedMatchups.map((m) =>
-        m.id === 'FINAL' ? { ...m, team2Seed: winningSeed } : m
+        m.id === adv.target ? { ...m, [adv.slot]: winningSeed } : m
       );
     }
 
-    // Check if champion
     const finalMatch = updatedMatchups.find((m) => m.id === 'FINAL');
     let champion = bracket.champion;
     if (finalMatch?.winningSeed) {
@@ -302,6 +291,98 @@ export default function BracketManagerPage() {
     setSaving(false);
   }
 
+  async function pullScoresForRound(roundNum: number) {
+    if (!bracket) return;
+
+    const week = (bracket.playoffStartWeek || playoffStartWeek) + roundNum - 1;
+    const roundMatchups = bracket.matchups.filter((m) => m.round === roundNum);
+
+    const teamsInRound: BracketTeam[] = [];
+    for (const m of roundMatchups) {
+      if (m.team1Seed) {
+        const found = bracket.teams.find((t) => t.seed === m.team1Seed);
+        if (found) teamsInRound.push(found);
+      }
+      if (m.team2Seed) {
+        const found = bracket.teams.find((t) => t.seed === m.team2Seed);
+        if (found) teamsInRound.push(found);
+      }
+    }
+
+    if (teamsInRound.length === 0) {
+      setMessage('No teams set for this round yet.');
+      return;
+    }
+
+    // Real Sleeper league IDs are long numeric strings; reject fakes like "sales"
+    const hasRealIds = teamsInRound.every((t) => t.leagueId.length > 10);
+    if (!hasRealIds) {
+      setMessage('Cannot pull scores - teams need real Sleeper league IDs. Re-create bracket with auto-seed or update teams.');
+      return;
+    }
+
+    setPullingScores(true);
+    setMessage('');
+
+    try {
+      const leagueIdSet: Record<string, boolean> = {};
+      for (const t of teamsInRound) leagueIdSet[t.leagueId] = true;
+      const leagueIds = Object.keys(leagueIdSet);
+
+      const allScores: Record<string, Record<number, number>> = {};
+      for (const lid of leagueIds) {
+        const res = await fetch('/api/admin/bracket/scores', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ leagueId: lid, week }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to fetch scores');
+        }
+        const data = await res.json();
+        allScores[lid] = data.scores;
+      }
+
+      let filledCount = 0;
+      const updatedMatchups = bracket.matchups.map((m) => {
+        if (m.round !== roundNum) return m;
+
+        let team1Score = m.team1Score;
+        let team2Score = m.team2Score;
+
+        if (m.team1Seed) {
+          const team = bracket.teams.find((bt) => bt.seed === m.team1Seed);
+          if (team && allScores[team.leagueId] && allScores[team.leagueId][team.rosterId] !== undefined) {
+            team1Score = allScores[team.leagueId][team.rosterId];
+            filledCount++;
+          }
+        }
+        if (m.team2Seed) {
+          const team = bracket.teams.find((bt) => bt.seed === m.team2Seed);
+          if (team && allScores[team.leagueId] && allScores[team.leagueId][team.rosterId] !== undefined) {
+            team2Score = allScores[team.leagueId][team.rosterId];
+            filledCount++;
+          }
+        }
+
+        return { ...m, team1Score, team2Score };
+      });
+
+      setBracket({ ...bracket, matchups: updatedMatchups });
+      if (filledCount > 0) {
+        setMessage('Pulled ' + filledCount + ' score(s) from Sleeper (NFL Week ' + week + '). Review and confirm winners.');
+      } else {
+        setMessage('No scores found for NFL Week ' + week + '. Games may not have started yet.');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setMessage('Error pulling scores: ' + msg);
+    } finally {
+      setPullingScores(false);
+    }
+  }
+
   function getTeamBySeed(seed: number | null): BracketTeam | null {
     if (!seed || !bracket) return null;
     return bracket.teams.find((t) => t.seed === seed) ?? null;
@@ -326,11 +407,27 @@ export default function BracketManagerPage() {
           </p>
         </div>
 
+        {/* Playoff start week */}
+        <div className="glass-card p-4 flex items-center gap-4 flex-wrap">
+          <label className="text-sm text-text-secondary">Playoff Start Week (NFL):</label>
+          <input
+            type="number"
+            min={1}
+            max={18}
+            value={playoffStartWeek}
+            onChange={(e) => setPlayoffStartWeek(parseInt(e.target.value) || 15)}
+            className="w-20 px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
+          />
+          <span className="text-xs text-text-muted">
+            Needed for auto-pulling scores from Sleeper
+          </span>
+        </div>
+
         {/* Option 1: Auto-seed */}
         <div className="glass-card p-6 space-y-4">
           <h2 className="font-bold text-white">Option 1: Auto-Seed from Rankings</h2>
           <p className="text-text-secondary text-sm">
-            Pull the top 3 from each league based on current power rankings.
+            Pull the top 3 from each league based on current power rankings. Scores can be auto-pulled from Sleeper.
           </p>
           <button
             onClick={handleSeedFromRankings}
@@ -474,7 +571,6 @@ export default function BracketManagerPage() {
   if (!bracket) return null;
 
   // --- MANAGE SCREEN ---
-  // Group matchups by round
   const roundLabels: Record<number, string> = {
     1: 'Week 1 — Play-In Round',
     2: 'Week 2 — League Championships',
@@ -515,12 +611,51 @@ export default function BracketManagerPage() {
         )}
       </div>
 
+      {/* Playoff start week config */}
+      <div className="glass-card p-4 flex items-center gap-4 flex-wrap">
+        <label className="text-sm text-text-secondary">Playoff Start Week (NFL):</label>
+        <input
+          type="number"
+          min={1}
+          max={18}
+          value={bracket.playoffStartWeek ?? playoffStartWeek}
+          onChange={(e) => {
+            const week = parseInt(e.target.value) || 15;
+            setPlayoffStartWeek(week);
+            setBracket({ ...bracket, playoffStartWeek: week });
+          }}
+          className="w-20 px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
+        />
+        <span className="text-xs text-text-muted">
+          Week 1 = NFL Wk {bracket.playoffStartWeek ?? playoffStartWeek},
+          Week 2 = NFL Wk {(bracket.playoffStartWeek ?? playoffStartWeek) + 1},
+          Week 3 = NFL Wk {(bracket.playoffStartWeek ?? playoffStartWeek) + 2}
+        </span>
+      </div>
+
       {/* Matchup editor by round */}
-      {roundNumbers.map((roundNum) => (
+      {roundNumbers.map((roundNum) => {
+        const nflWeek = (bracket.playoffStartWeek ?? playoffStartWeek) + roundNum - 1;
+        const roundHasTeams = rounds[roundNum].some((m) => m.team1Seed !== null || m.team2Seed !== null);
+        const roundAlreadyDecided = rounds[roundNum].every((m) => m.winningSeed !== null);
+
+        return (
         <div key={roundNum} className="glass-card p-6 space-y-4">
-          <h2 className={`font-bold ${roundNum === 3 ? 'text-accent-gold' : 'text-white'}`}>
-            {roundLabels[roundNum] || `Round ${roundNum}`}
-          </h2>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className={`font-bold ${roundNum === 3 ? 'text-accent-gold' : 'text-white'}`}>
+              {roundLabels[roundNum] || `Round ${roundNum}`}
+              <span className="text-xs text-text-muted font-normal ml-2">(NFL Week {nflWeek})</span>
+            </h2>
+            {roundHasTeams && !roundAlreadyDecided && (
+              <button
+                onClick={() => pullScoresForRound(roundNum)}
+                disabled={pullingScores}
+                className="px-4 py-1.5 bg-primary/20 text-primary rounded-lg text-sm font-semibold hover:bg-primary/30 transition-colors disabled:opacity-50"
+              >
+                {pullingScores ? 'Pulling...' : 'Pull Scores from Sleeper'}
+              </button>
+            )}
+          </div>
 
           {rounds[roundNum].map((matchup) => {
             const team1 = getTeamBySeed(matchup.team1Seed);
@@ -611,7 +746,8 @@ export default function BracketManagerPage() {
             );
           })}
         </div>
-      ))}
+        );
+      })}
 
       {/* Save + Reset */}
       <div className="flex items-center gap-4">

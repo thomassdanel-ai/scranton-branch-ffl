@@ -1,8 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { LEAGUE_CONFIG } from '@/config/leagues';
 
-// --- Types ---
-
 export type BracketTeam = {
   rosterId: number;
   leagueId: string;
@@ -18,15 +16,15 @@ export type BracketTeam = {
 };
 
 export type BracketMatchup = {
-  id: string; // e.g. "R1-M1", "R2-M1", "FINAL"
+  id: string;
   round: number;
-  position: number; // position within the round (0-indexed)
+  position: number;
   team1Seed: number | null;
   team2Seed: number | null;
   team1Score: number | null;
   team2Score: number | null;
   winningSeed: number | null;
-  label: string; // "Quarterfinal 1", "Semifinal 1", "Championship"
+  label: string;
 };
 
 export type BracketData = {
@@ -36,14 +34,9 @@ export type BracketData = {
   rounds: number;
   status: 'pending' | 'in_progress' | 'complete';
   champion: BracketTeam | null;
+  playoffStartWeek?: number;
 };
 
-// --- Bracket Generation ---
-
-/**
- * Generate a blank bracket structure based on number of teams.
- * Supports 4, 6, 8, or 10+ teams.
- */
 export function generateBracketMatchups(teamCount: number): BracketMatchup[] {
   if (teamCount <= 2) {
     return [{
@@ -60,7 +53,6 @@ export function generateBracketMatchups(teamCount: number): BracketMatchup[] {
   }
 
   if (teamCount <= 4) {
-    // 4 teams: 2 semis + 1 final
     return [
       { id: 'R1-M1', round: 1, position: 0, team1Seed: 1, team2Seed: 4, team1Score: null, team2Score: null, winningSeed: null, label: 'Semifinal 1' },
       { id: 'R1-M2', round: 1, position: 1, team1Seed: 2, team2Seed: 3, team1Score: null, team2Score: null, winningSeed: null, label: 'Semifinal 2' },
@@ -69,21 +61,17 @@ export function generateBracketMatchups(teamCount: number): BracketMatchup[] {
   }
 
   if (teamCount <= 6) {
-    // 6 teams: top 2 get byes, 4 play-in games, then semis, then final
     return [
-      // Play-in round
       { id: 'R1-M1', round: 1, position: 0, team1Seed: 3, team2Seed: 6, team1Score: null, team2Score: null, winningSeed: null, label: 'Play-In 1' },
       { id: 'R1-M2', round: 1, position: 1, team1Seed: 4, team2Seed: 5, team1Score: null, team2Score: null, winningSeed: null, label: 'Play-In 2' },
-      // Semis (1 seed vs winner of play-in 2, 2 seed vs winner of play-in 1)
+      // #1 vs play-in 2 winner, #2 vs play-in 1 winner
       { id: 'R2-M1', round: 2, position: 0, team1Seed: 1, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Semifinal 1' },
       { id: 'R2-M2', round: 2, position: 1, team1Seed: 2, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Semifinal 2' },
-      // Final
       { id: 'FINAL', round: 3, position: 0, team1Seed: null, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Championship' },
     ];
   }
 
   if (teamCount <= 8) {
-    // 8 teams: quarterfinals, semis, final
     return [
       { id: 'R1-M1', round: 1, position: 0, team1Seed: 1, team2Seed: 8, team1Score: null, team2Score: null, winningSeed: null, label: 'Quarterfinal 1' },
       { id: 'R1-M2', round: 1, position: 1, team1Seed: 4, team2Seed: 5, team1Score: null, team2Score: null, winningSeed: null, label: 'Quarterfinal 2' },
@@ -95,15 +83,12 @@ export function generateBracketMatchups(teamCount: number): BracketMatchup[] {
     ];
   }
 
-  // 10+ teams: play-in round for bottom seeds, then quarterfinals, semis, final
-  const playInCount = teamCount - 8; // how many extra beyond 8
-  const playInGames = Math.ceil(playInCount); // each play-in replaces a bottom seed
+  const playInGames = teamCount - 8;
   const matchups: BracketMatchup[] = [];
 
-  // Play-in round: bottom seeds play each other
   for (let i = 0; i < playInGames; i++) {
-    const highSeed = 8 - playInGames + i + 1; // e.g. for 10 teams: seeds 7,8
-    const lowSeed = teamCount - i; // e.g. for 10 teams: seeds 10,9
+    const highSeed = 8 - playInGames + i + 1;
+    const lowSeed = teamCount - i;
     matchups.push({
       id: `R1-M${i + 1}`,
       round: 1,
@@ -117,11 +102,9 @@ export function generateBracketMatchups(teamCount: number): BracketMatchup[] {
     });
   }
 
-  // Quarterfinals
   const qfSeeds: [number | null, number | null][] = [
     [1, null], [4, 5], [2, null], [3, 6],
   ];
-  // Fill in known seeds for QF (seeds that don't have play-in games)
   for (let i = 0; i < 4; i++) {
     matchups.push({
       id: `R2-M${i + 1}`,
@@ -136,13 +119,10 @@ export function generateBracketMatchups(teamCount: number): BracketMatchup[] {
     });
   }
 
-  // Semis
   matchups.push(
     { id: 'R3-M1', round: 3, position: 0, team1Seed: null, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Semifinal 1' },
     { id: 'R3-M2', round: 3, position: 1, team1Seed: null, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Semifinal 2' },
   );
-
-  // Final
   matchups.push(
     { id: 'FINAL', round: 4, position: 0, team1Seed: null, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Championship' },
   );
@@ -150,9 +130,6 @@ export function generateBracketMatchups(teamCount: number): BracketMatchup[] {
   return matchups;
 }
 
-/**
- * Get the total number of rounds for a given team count.
- */
 export function getRoundCount(teamCount: number): number {
   if (teamCount <= 2) return 1;
   if (teamCount <= 4) return 2;
@@ -160,9 +137,6 @@ export function getRoundCount(teamCount: number): number {
   return 4;
 }
 
-/**
- * Get round labels for display
- */
 export function getRoundLabels(teamCount: number): string[] {
   if (teamCount <= 2) return ['Championship'];
   if (teamCount <= 4) return ['Semifinals', 'Championship'];
@@ -171,15 +145,9 @@ export function getRoundLabels(teamCount: number): string[] {
   return ['Play-In', 'Quarterfinals', 'Semifinals', 'Championship'];
 }
 
-// --- Database Operations ---
-
-/**
- * Load bracket data from Supabase for the current season.
- */
 export async function loadBracket(): Promise<BracketData | null> {
   const supabase = createServiceClient();
 
-  // Get current season
   const { data: season } = await supabase
     .from('seasons')
     .select('id, year')
@@ -201,9 +169,6 @@ export async function loadBracket(): Promise<BracketData | null> {
   return bracket.bracket_data as BracketData;
 }
 
-/**
- * Save bracket data to Supabase for the current season.
- */
 export async function saveBracket(data: BracketData): Promise<void> {
   const supabase = createServiceClient();
 
@@ -215,7 +180,6 @@ export async function saveBracket(data: BracketData): Promise<void> {
 
   if (!season) throw new Error('No current season found');
 
-  // Check if bracket already exists for this season
   const { data: existing } = await supabase
     .from('brackets')
     .select('id')
@@ -235,9 +199,6 @@ export async function saveBracket(data: BracketData): Promise<void> {
   }
 }
 
-/**
- * Determine bracket status based on matchup results.
- */
 export function computeBracketStatus(matchups: BracketMatchup[]): 'pending' | 'in_progress' | 'complete' {
   const hasAnyResult = matchups.some((m) => m.winningSeed !== null);
   const finalMatch = matchups.find((m) => m.id === 'FINAL');
@@ -248,9 +209,6 @@ export function computeBracketStatus(matchups: BracketMatchup[]): 'pending' | 'i
   return 'pending';
 }
 
-/**
- * Derive the team count from league config.
- */
 export function getQualifierCount(): number {
   return LEAGUE_CONFIG.leagues.length * LEAGUE_CONFIG.championship.qualifiersPerLeague;
 }
