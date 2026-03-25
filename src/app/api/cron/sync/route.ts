@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LEAGUE_CONFIG } from '@/config/leagues';
 import { getNFLState, getLeagueRosters, getMatchups, getTransactions } from '@/lib/sleeper/api';
 import { createServiceClient } from '@/lib/supabase/server';
+import { computePowerRankings } from '@/lib/rankings/compute';
+import type { SleeperMatchup, SleeperRoster } from '@/lib/sleeper/types';
 
 function isGameDay(): boolean {
   const day = new Date().getDay();
@@ -14,15 +16,13 @@ function isGameHours(): boolean {
 }
 
 function shouldSync(nflState: { season_type: string }): boolean {
-  if (nflState.season_type === 'off') return false; // handled by daily cron
+  if (nflState.season_type === 'off') return false;
   if (isGameDay() && isGameHours()) return true;
-  // Non-game slots: only sync on 30-min boundaries (when minute is 0 or 30)
   const minute = new Date().getMinutes();
   return minute < 5 || (minute >= 30 && minute < 35);
 }
 
 async function getOrCreateSeasonId(supabase: ReturnType<typeof createServiceClient>, season: string): Promise<string> {
-  // Try to find the current season record
   const { data: existing } = await supabase
     .from('seasons')
     .select('id')
@@ -32,7 +32,6 @@ async function getOrCreateSeasonId(supabase: ReturnType<typeof createServiceClie
 
   if (existing) return existing.id;
 
-  // Create it if it doesn't exist
   const { data: created, error } = await supabase
     .from('seasons')
     .insert({
@@ -45,6 +44,75 @@ async function getOrCreateSeasonId(supabase: ReturnType<typeof createServiceClie
 
   if (error || !created) throw new Error(`Failed to create season record: ${error?.message}`);
   return created.id;
+}
+
+function buildWeeklyResults(
+  seasonId: string,
+  leagueId: string,
+  week: number,
+  matchups: SleeperMatchup[],
+  rosters: SleeperRoster[]
+) {
+  // Group matchups by matchup_id to find opponents
+  const grouped: Record<number, SleeperMatchup[]> = {};
+  for (const m of matchups) {
+    if (!m.matchup_id) continue;
+    if (!grouped[m.matchup_id]) grouped[m.matchup_id] = [];
+    grouped[m.matchup_id].push(m);
+  }
+
+  // Build roster lookup for season-to-date stats
+  const rosterMap: Record<number, SleeperRoster> = {};
+  for (const r of rosters) {
+    rosterMap[r.roster_id] = r;
+  }
+
+  const rows: Array<Record<string, unknown>> = [];
+
+  for (const matchupId of Object.keys(grouped)) {
+    const sides = grouped[Number(matchupId)];
+    for (const side of sides) {
+      const opponent = sides.find((s) => s.roster_id !== side.roster_id);
+      const roster = rosterMap[side.roster_id];
+
+      let result: string | null = null;
+      if (opponent) {
+        if (side.points > opponent.points) result = 'win';
+        else if (side.points < opponent.points) result = 'loss';
+        else result = 'tie';
+      }
+
+      const pf = roster
+        ? roster.settings.fpts + (roster.settings.fpts_decimal ?? 0) / 100
+        : 0;
+      const pa = roster
+        ? roster.settings.fpts_against + (roster.settings.fpts_against_decimal ?? 0) / 100
+        : 0;
+
+      rows.push({
+        season_id: seasonId,
+        league_id: leagueId,
+        week,
+        roster_id: side.roster_id,
+        points: side.points ?? 0,
+        opponent_roster_id: opponent?.roster_id ?? null,
+        opponent_points: opponent?.points ?? null,
+        result,
+        matchup_id: Number(matchupId),
+        season_wins: roster?.settings.wins ?? 0,
+        season_losses: roster?.settings.losses ?? 0,
+        season_ties: roster?.settings.ties ?? 0,
+        season_points_for: pf,
+        season_points_against: pa,
+        streak: roster?.metadata?.streak ?? null,
+        is_playoff: false,
+        is_bracket: false,
+        fetched_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  return rows;
 }
 
 export async function GET(req: NextRequest) {
@@ -73,7 +141,7 @@ export async function GET(req: NextRequest) {
         getTransactions(league.id, week),
       ]);
 
-      // Persist to Supabase
+      // Persist snapshots + transactions
       const [snapshotResult, txResult] = await Promise.all([
         supabase.from('league_snapshots').upsert(
           {
@@ -101,13 +169,43 @@ export async function GET(req: NextRequest) {
       if (snapshotResult.error) throw new Error(`Snapshot upsert failed (${league.name}): ${snapshotResult.error.message}`);
       if (txResult.error) throw new Error(`Transactions upsert failed (${league.name}): ${txResult.error.message}`);
 
+      // Write weekly results (append-only via upsert)
+      const weeklyRows = buildWeeklyResults(seasonId, league.id, week, matchups, rosters);
+      if (weeklyRows.length > 0) {
+        const { error: wrErr } = await supabase
+          .from('weekly_results')
+          .upsert(weeklyRows, { onConflict: 'league_id,week,roster_id' });
+        if (wrErr) {
+          console.error(`Weekly results upsert failed (${league.name}):`, wrErr.message);
+        }
+      }
+
       results[league.id] = {
         league: league.name,
         week,
         rosters: rosters.length,
         matchups: matchups.length,
         transactions: transactions.length,
+        weeklyResults: weeklyRows.length,
       };
+    }
+
+    // Persist power rankings for this week
+    try {
+      const rankings = await computePowerRankings();
+      if (rankings.length > 0) {
+        await supabase.from('power_rankings').upsert(
+          {
+            season_id: seasonId,
+            week,
+            rankings,
+            computed_at: new Date().toISOString(),
+          },
+          { onConflict: 'season_id,week' }
+        );
+      }
+    } catch (err) {
+      console.error('Power rankings compute failed:', err);
     }
 
     return NextResponse.json({
