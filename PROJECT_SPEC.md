@@ -813,15 +813,15 @@ The cron runs every 5 min via Vercel, but the sync logic checks the NFL state an
 - [ ] Migrate existing season management to use new schema
 - [ ] Update power rankings, bracket, and standings queries to read from new schema
 
-### Phase C: Draft Board (Next Up)
+### Phase C: Draft Board ✅
 **Goal:** Replace the Excel + Teams call draft with a live on-site experience.
 - [x] Create `draft_boards` and `draft_picks` tables (done in Phase A migration)
 - [x] Build snake draft pick pre-generation logic (done in Phase B draft order lock)
-- [ ] Build draft board UI (grid view, pick entry, current pick indicator)
-- [ ] Implement Supabase Realtime for live pick updates
-- [ ] Build mock draft mode (reset, re-run, no permanent save)
-- [ ] Build draft clock (optional timer with pause/resume)
-- [ ] Post-draft: archive results, link to history
+- [x] Build draft board UI (grid view, pick entry, current pick indicator)
+- [x] Implement Supabase Realtime for live pick updates
+- [x] Build mock draft mode (create, run, reset)
+- [x] Build draft clock (timer with pause/resume)
+- [x] Post-draft: auto-complete board, auto-activate season when all boards done
 
 ### Phase D: Recap Data API
 **Goal:** Enable AI-powered weekly recaps ("The Dundie Report").
@@ -889,6 +889,6 @@ All existing public pages continue to work during migration. The new schema is a
 
 ---
 
-*Last updated: March 24, 2026 (Phases A+B shipped)*
+*Last updated: March 25, 2026 (Phases A+B+C shipped)*
 *Commissioner: T_Danel*
 *Platform Spec: v1 (PLATFORM_SPEC3-24.md)*
