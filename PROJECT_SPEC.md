@@ -3,6 +3,10 @@
 > **This document is the single source of truth for building the Scranton Branch FFL website.**
 > Claude Code should read this file first before making any changes to the codebase.
 
+### Guiding Principle
+
+**Scranton first, platform later.** The data model is multi-tenant — every table gets an `org_id` so a second organization could theoretically plug in. But every UI screen, label, and easter egg is 100% Scranton Branch themed. One `organizations` row exists (Scranton Branch FFL), seeded on deploy. No org picker, no onboarding wizard for new orgs. Just a `WHERE org_id = $SCRANTON` on queries and a clean conscience about the architecture.
+
 ---
 
 ## 1. Project Overview
@@ -227,20 +231,61 @@ Past seasons preserved permanently in Supabase.
 
 ### 5.7 Commissioner Admin Panel
 
-Protected route (authenticated via a simple password or Supabase auth).
+Protected route (cookie-based admin auth with rate limiting, 24hr expiry, `sameSite: strict`).
 
-- **Announcements** — WYSIWYG editor to post news/updates to the dashboard activity feed
-- **Newsletter Composer** — rich text editor with pre-built HTML email templates:
-  - Branded header with Scranton Branch FFL graphics
-  - Auto-populated score summary tables for the week
-  - Power rankings snapshot
-  - Sections for: Matchup Spotlights, Trade of the Week, Waiver Wire Hero, Trash Talk Corner
-  - Preview mode (see exactly what the email will look like)
-  - Send via Resend to all league members
-  - Sent newsletters are archived and viewable on the site as a "Recaps" page
-- **Bracket Manager** — input championship matchup results
-- **Season Management** — archive a season, configure new season league IDs
-- **Email List Management** — add/remove member email addresses for newsletter distribution
+**Dashboard Tabs:**
+
+| Tab | What It Does |
+|-----|-------------|
+| **Season** | Current season status, Sleeper league IDs, sync controls (existing) |
+| **Members** | Full member CRM — table view, add/edit/deactivate, member detail (new) |
+| **Season Setup** | Step-by-step wizard — intake, randomize leagues, draft order (new) |
+| **Bracket** | Playoff bracket manager with auto-pull from Sleeper (existing) |
+| **Draft Board** | Launch/manage live draft or mock draft (new) |
+| **Recaps** | Generate AI recap, edit, publish, manage newsletter (new) |
+| **Settings** | API keys, recap prompt config, org settings (new) |
+
+#### 5.7.1 Members CRM (New)
+
+Replaces the spreadsheet. A sortable, filterable table showing: display name, email, status (active/inactive/alumni), current league, Sleeper team name, seasons played, joined season, notes.
+
+- **Add Member** — modal form: full name (required), display name (optional), email (optional), notes
+- **Row actions** — Edit, Deactivate, Archive (alumni), Delete (only if no member_seasons rows)
+- **Member Detail View** — click into a member for full history: all seasons with league, team name, final standing, record, transaction count, draft picks
+
+#### 5.7.2 Season Setup Wizard (New)
+
+Step-by-step flow, only available when no season is in `active` or `drafting` status:
+
+1. **Create Season** — season number (auto-increment), NFL year, num leagues, league names, roster size
+2. **Member Intake** — checklist of active members (confirm/decline/pending) + add new members. Target headcount indicator.
+3. **League Randomization** — Fisher-Yates shuffle, round-robin deal into leagues. Re-roll, manual override (drag-and-drop), lock (creates member_seasons rows, status → `pre_draft`)
+4. **Draft Order** — randomize draft_position per league, manual reorder, lock (pre-generates draft_picks rows)
+5. **Sleeper League Linking** — input Sleeper league IDs, pull roster data, map Sleeper rosters to members (auto-match by name, manual fallback)
+
+#### 5.7.3 Draft Board (New)
+
+Live snake draft board at `/draft/[league_slug]`. Commissioner controls flow; everyone watches via Supabase Realtime.
+
+- **Grid view** — columns = teams (by draft position), rows = rounds. Current pick highlighted.
+- **Pick entry (commish only)** — search-as-you-type player lookup, position filter, confirm pick, undo (30s window)
+- **Clock (optional)** — configurable timer with pause/resume/skip
+- **Real-time** — Supabase Realtime subscription on draft_picks table
+- **Mock draft mode** — `is_mock = true`, labeled prominently, resettable, not saved to history
+- **Post-draft** — board status → `completed`, season can advance to `active`, results archived
+
+#### 5.7.4 Recap Data API (New)
+
+Read-only endpoints for AI-powered recap generation. Auth via Bearer token (`RECAP_API_KEY`).
+
+- `GET /api/recap/weekly?season={n}&week={n}` — full weekly payload (matchups, standings, power rankings, transactions, notable stats, draft context, history, bold prediction tracking)
+- `GET /api/recap/season-summary?season={n}` — end-of-season stats, awards, champion info
+- `GET /api/recap/member-profile?member_id={id}` — career deep dive across all seasons
+
+**AI Recap System ("The Dundie Report"):**
+- System prompt stored in `organizations.settings.recap_prompt` (configurable in Settings tab)
+- Default persona: AI Matthew Berry writing a weekly column with recurring segments (Cold Open, Matchup Breakdown, Power Rankings Movement, Trade of the Week, Waiver Wire Hero, The Toby Award, Bold Predictions)
+- Two consumers: (1) Claude via web_fetch for manual recap generation, (2) future in-app "Generate Recap" button calling Anthropic API server-side
 
 ### 5.8 Recaps Archive (Newsletter History)
 
@@ -249,21 +294,135 @@ Public page listing all past newsletter/recap emails.
 - Chronological list with week number, date, and preview snippet
 - Click to view the full HTML recap in a styled reading view
 - Feels like a mini sports blog
+- Future: in-app generation flow (Generate → Edit → Publish → optionally send via Resend)
 
 ---
 
 ## 6. Database Schema (Supabase)
 
+### 6.1 Core Entity Tables (New — Platform Spec v1)
+
 ```sql
--- League configuration (persisted per-season)
-CREATE TABLE seasons (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  year TEXT NOT NULL,
-  is_current BOOLEAN DEFAULT false,
-  config JSONB NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+-- Multi-tenant root (one row: Scranton Branch FFL, seeded on deploy)
+CREATE TABLE organizations (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            TEXT NOT NULL,
+  slug            TEXT NOT NULL UNIQUE,
+  commissioner_email TEXT,
+  settings        JSONB DEFAULT '{}',   -- timezone, branding, recap_prompt, misc
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
 );
 
+-- A real person. One record per person per org, persists across all seasons.
+CREATE TABLE members (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id),
+  full_name       TEXT NOT NULL,
+  display_name    TEXT,                 -- used in recaps, rankings, UI
+  email           TEXT,
+  status          TEXT NOT NULL DEFAULT 'active',  -- active | inactive | alumni
+  joined_season   INT,
+  notes           TEXT,                 -- commish private notes
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(org_id, email)
+);
+
+-- One row per year of play
+CREATE TABLE seasons (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id),
+  season_number   INT NOT NULL,
+  year            INT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'setup',
+  -- Status flow: setup → pre_draft → drafting → active → playoffs → completed → archived
+  num_leagues     INT NOT NULL DEFAULT 2,
+  roster_size_per_league INT NOT NULL DEFAULT 10,
+  settings        JSONB DEFAULT '{}',
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(org_id, season_number)
+);
+
+-- N leagues per season (replaces hard-coded league config for DB operations)
+CREATE TABLE leagues (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id),
+  season_id       UUID NOT NULL REFERENCES seasons(id),
+  name            TEXT NOT NULL,
+  sleeper_league_id TEXT,              -- linked after Sleeper league is created
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(season_id, name)
+);
+
+-- Which person is in which league in which season
+CREATE TABLE member_seasons (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  member_id       UUID NOT NULL REFERENCES members(id),
+  season_id       UUID NOT NULL REFERENCES seasons(id),
+  league_id       UUID NOT NULL REFERENCES leagues(id),
+  sleeper_roster_id TEXT,
+  sleeper_display_name TEXT,           -- their team name on Sleeper that season
+  draft_position  INT,                 -- snake draft order (1-based)
+  onboard_status  TEXT DEFAULT 'pending',  -- pending | confirmed | declined
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(member_id, season_id)         -- one league per person per season
+);
+
+-- Live draft board (one per league per season)
+CREATE TABLE draft_boards (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  league_id       UUID NOT NULL REFERENCES leagues(id),
+  season_id       UUID NOT NULL REFERENCES seasons(id),
+  status          TEXT NOT NULL DEFAULT 'pending',  -- pending | live | paused | completed
+  num_rounds      INT NOT NULL DEFAULT 15,
+  seconds_per_pick INT DEFAULT 90,
+  current_round   INT DEFAULT 1,
+  current_pick    INT DEFAULT 1,
+  is_mock         BOOLEAN DEFAULT false,
+  started_at      TIMESTAMPTZ,
+  completed_at    TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(league_id, season_id)
+);
+
+-- Every pick slot in a draft (pre-generated as empty rows)
+CREATE TABLE draft_picks (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  draft_board_id  UUID NOT NULL REFERENCES draft_boards(id),
+  member_season_id UUID NOT NULL REFERENCES member_seasons(id),
+  round           INT NOT NULL,
+  pick_in_round   INT NOT NULL,
+  overall_pick    INT NOT NULL,
+  player_name     TEXT,                -- null until picked
+  player_id       TEXT,                -- Sleeper player ID if resolvable
+  position        TEXT,                -- QB, RB, WR, TE, K, DEF
+  picked_at       TIMESTAMPTZ,
+  is_keeper       BOOLEAN DEFAULT false,
+  UNIQUE(draft_board_id, round, pick_in_round),
+  UNIQUE(draft_board_id, overall_pick)
+);
+```
+
+### 6.2 Schema Relationship Map
+
+```
+organizations
+  └── members (people in this org)
+  └── seasons (each year of play)
+        └── leagues (N leagues per season)
+        │     └── draft_boards (one per league per season)
+        │           └── draft_picks (every pick slot)
+        └── member_seasons (who is in which league)
+              ├── linked to: members (the person)
+              ├── linked to: leagues (which league this season)
+              └── linked to: draft_picks (their picks)
+```
+
+### 6.3 Existing Operational Tables (unchanged)
+
+```sql
 -- Cached Sleeper league data
 CREATE TABLE league_snapshots (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -314,7 +473,7 @@ CREATE TABLE newsletters (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Email subscribers
+-- Email subscribers (will be replaced by members.email in Phase E)
 CREATE TABLE subscribers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
@@ -383,20 +542,34 @@ scranton-branch-ffl/
 │   │   ├── history/
 │   │   │   └── [season]/
 │   │   │       └── page.tsx          # Historical season archive
+│   │   ├── draft/
+│   │   │   └── [leagueSlug]/
+│   │   │       └── page.tsx          # Live draft board (public viewer)
 │   │   ├── admin/
 │   │   │   ├── page.tsx              # Admin dashboard
-│   │   │   ├── announcements/
-│   │   │   │   └── page.tsx          # Manage announcements
-│   │   │   ├── newsletter/
-│   │   │   │   └── page.tsx          # Newsletter composer
+│   │   │   ├── members/
+│   │   │   │   └── page.tsx          # Member CRM (Phase A)
+│   │   │   ├── season-setup/
+│   │   │   │   └── page.tsx          # Season setup wizard (Phase B)
 │   │   │   ├── bracket/
-│   │   │   │   └── page.tsx          # Bracket manager
-│   │   │   └── season/
-│   │   │       └── page.tsx          # Season management
+│   │   │   │   └── page.tsx          # Bracket manager (existing)
+│   │   │   ├── draft/
+│   │   │   │   └── page.tsx          # Draft board controls (Phase C)
+│   │   │   ├── recaps/
+│   │   │   │   └── page.tsx          # Recap generation + publishing (Phase E)
+│   │   │   └── settings/
+│   │   │       └── page.tsx          # API keys, recap prompt, org settings
 │   │   └── api/
 │   │       ├── cron/
 │   │       │   └── sync/
 │   │       │       └── route.ts      # Cron job: sync Sleeper data
+│   │       ├── recap/
+│   │       │   ├── weekly/
+│   │       │   │   └── route.ts      # Weekly recap data (Phase D)
+│   │       │   ├── season-summary/
+│   │       │   │   └── route.ts      # Season summary data (Phase D)
+│   │       │   └── member-profile/
+│   │       │       └── route.ts      # Member career data (Phase D)
 │   │       ├── send-newsletter/
 │   │       │   └── route.ts          # Send newsletter via Resend
 │   │       └── admin/
@@ -523,6 +696,12 @@ ADMIN_PASSWORD=
 
 # Vercel (auto-set on Vercel)
 CRON_SECRET=
+
+# Recap API (Phase D)
+RECAP_API_KEY=
+
+# Anthropic (Phase E — in-app recap generation)
+ANTHROPIC_API_KEY=
 ```
 
 Create a `.env.local.example` with all keys listed (values blank) so the commissioner can fill them in during setup.
@@ -572,44 +751,96 @@ The cron runs every 5 min via Vercel, but the sync logic checks the NFL state an
 4. Vercel auto-deploys on every push to `main`
 5. Connect custom domain in Vercel settings
 
-### New Season Setup
+### New Season Setup (Legacy — replaced by Season Setup Wizard in Phase B)
 1. Create new leagues on Sleeper
 2. Update `src/config/leagues.ts` with new league IDs and season
 3. Use admin panel "Archive Season" to snapshot the completed season
 4. Push to `main` — site auto-updates
 
+### New Season Setup (Phase B+)
+1. Use Season Setup Wizard: create season → intake members → randomize leagues → set draft order
+2. Create leagues on Sleeper, link via Step 5
+3. Run draft on-site (Phase C) or manually on Sleeper
+4. Season activates, Sleeper sync picks up automatically
+
 ---
 
 ## 12. Build Phases
 
-### Phase 1: Foundation
-- [ ] Next.js project scaffold with TypeScript + Tailwind
-- [ ] Supabase setup with migrations
-- [ ] Sleeper API client library (`src/lib/sleeper/`)
-- [ ] League config system
-- [ ] Basic layout (nav, footer, responsive shell)
-- [ ] Cron job for data syncing
+### Phase 1: Foundation ✅
+- [x] Next.js project scaffold with TypeScript + Tailwind
+- [x] Supabase setup with migrations
+- [x] Sleeper API client library (`src/lib/sleeper/`)
+- [x] League config system (`src/config/leagues.ts`)
+- [x] Basic layout (nav, footer, responsive shell)
+- [x] Cron job for data syncing (smart frequency: game day / off-day / offseason)
 
-### Phase 2: Core Pages
-- [ ] Dashboard home page
-- [ ] Cross-league power rankings
-- [ ] League explorer (standings, matchups)
-- [ ] Transactions feed
+### Phase 2: Core Pages ✅
+- [x] Dashboard home page
+- [x] Cross-league power rankings
+- [x] League explorer (standings, matchups)
+- [x] Transactions feed
 
-### Phase 3: Championship & History
-- [ ] Championship bracket engine + visualization
-- [ ] Bracket manager in admin panel
+### Phase 3: Championship & History ✅
+- [x] Championship bracket engine + visualization
+- [x] Bracket manager in admin panel (with auto-pull scores from Sleeper)
 - [ ] Historical season archives
 - [ ] Season archival flow
 
-### Phase 4: Commissioner Tools
-- [ ] Admin panel with password auth
-- [ ] Announcements CRUD
-- [ ] Newsletter composer with templates
-- [ ] Resend email integration
-- [ ] Recaps archive page
+### Phase 4: Admin Hardening (Done)
+- [x] Admin panel with cookie-based auth (rate limiting, timing-safe compare, `sameSite: strict`)
+- [x] Security headers (X-Frame-Options, HSTS, etc.)
+- [x] Error detail stripping from API responses
+- [x] CRON_SECRET deny-by-default when unset
+- [ ] Session tokens with server-side store (security audit item #3)
+- [ ] Zod schema validation on bracket writes (security audit item #10)
 
-### Phase 5: Polish
+### Phase A: Member Schema + Commish CRM (Next Up)
+**Goal:** Replace the spreadsheet with a real member management system.
+- [ ] Create `organizations` table, seed Scranton Branch row
+- [ ] Create `members` table
+- [ ] Update `seasons` table (add org_id, season_number, status)
+- [ ] Create `leagues` table (per-season, replaces hard-coded config for DB)
+- [ ] Create `member_seasons` join table
+- [ ] Backfill Season 1 and Season 2 data from existing Supabase + spreadsheet
+- [ ] Build Members tab on commish dashboard (table, add, edit, deactivate)
+- [ ] Build Member detail view (season history, stats)
+
+### Phase B: Season Setup Wizard
+**Goal:** Automate pre-season logistics.
+- [ ] Build Season Setup wizard (Steps 1–4: create season, intake, randomize leagues, draft order)
+- [ ] Build Step 5: Sleeper league linking (auto-match rosters to members)
+- [ ] Migrate existing season management to use new schema
+- [ ] Update power rankings, bracket, and standings queries to read from new schema
+
+### Phase C: Draft Board
+**Goal:** Replace the Excel + Teams call draft with a live on-site experience.
+- [ ] Create `draft_boards` and `draft_picks` tables
+- [ ] Build snake draft pick pre-generation logic
+- [ ] Build draft board UI (grid view, pick entry, current pick indicator)
+- [ ] Implement Supabase Realtime for live pick updates
+- [ ] Build mock draft mode (reset, re-run, no permanent save)
+- [ ] Build draft clock (optional timer with pause/resume)
+- [ ] Post-draft: archive results, link to history
+
+### Phase D: Recap Data API
+**Goal:** Enable AI-powered weekly recaps ("The Dundie Report").
+- [ ] Build `GET /api/recap/weekly` endpoint
+- [ ] Build `GET /api/recap/season-summary` endpoint
+- [ ] Build `GET /api/recap/member-profile` endpoint
+- [ ] API key auth middleware (Bearer token from RECAP_API_KEY env var)
+- [ ] Test with Claude via web_fetch — write a sample recap
+- [ ] Refine the Matthew Berry system prompt based on output quality
+
+### Phase E: Newsletter + In-App Recaps
+**Goal:** Full content pipeline on the site.
+- [ ] Rich text editor for recap editing on commish dashboard
+- [ ] "Generate Recap" button (calls Anthropic API server-side)
+- [ ] Recaps table + public archive page
+- [ ] Resend integration for newsletter delivery
+- [ ] Subscriber management (pull from members.email)
+
+### Ongoing: Polish
 - [ ] Supabase Realtime for live score updates
 - [ ] Upstash Redis caching layer
 - [ ] Vercel Analytics integration
@@ -635,7 +866,29 @@ The cron runs every 5 min via Vercel, but the sync logic checks the NFL state an
 
 6. **Flexible league count:** Every feature that loops over leagues should use the config array, never hardcode league count or IDs. The bracket engine takes N qualifiers and generates the appropriate structure automatically.
 
+7. **Do NOT use Map iteration** (for...of on Map) — use plain objects or Object.keys(). TypeScript `downlevelIteration` is off.
+
+8. **Windows dev environment** — `launch.json` needs `"runtimeExecutable": "node"` with `"runtimeArgs": ["node_modules/next/dist/bin/next", "dev"]`.
+
+9. **SWC cache gotcha** — if SWC compilation errors persist across code fixes, stop dev server, `rm -rf .next`, restart. Stale cache is the usual culprit.
+
 ---
 
-*Last updated: March 23, 2026*
+## 14. Migration Notes (Seasons 1–2)
+
+The current system stores Sleeper league IDs in `src/config/leagues.ts` and some standings data in existing Supabase tables. Migration plan for the new schema:
+
+1. Create new tables alongside existing ones (additive, nothing breaks)
+2. Seed `organizations` with Scranton Branch FFL
+3. Create `members` rows from the commish's spreadsheet + existing roster data
+4. Create `seasons`, `leagues`, `member_seasons` for Seasons 1 and 2
+5. Update existing queries (power rankings, standings, bracket, transactions) to join through the new schema
+6. Deprecate old direct-Sleeper-ID references once verified
+
+All existing public pages continue to work during migration. The new schema is additive — nothing breaks until we flip queries to use the new joins, and that can happen per-page.
+
+---
+
+*Last updated: March 24, 2026*
 *Commissioner: T_Danel*
+*Platform Spec: v1 (PLATFORM_SPEC3-24.md)*

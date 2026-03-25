@@ -71,6 +71,11 @@ export default function AdminPage() {
       <h1 className="text-2xl font-extrabold text-white">Commissioner Panel</h1>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Link href="/admin/members" className="glass-card p-6 hover:bg-white/5 transition-colors">
+          <h2 className="font-bold text-white mb-1">Members</h2>
+          <p className="text-text-muted text-sm">Manage league members, view history</p>
+        </Link>
+
         <Link href="/admin/season" className="glass-card p-6 hover:bg-white/5 transition-colors">
           <h2 className="font-bold text-white mb-1">Season Management</h2>
           <p className="text-text-muted text-sm">Update league IDs, switch seasons</p>
@@ -87,13 +92,13 @@ export default function AdminPage() {
         </Link>
 
         <div className="glass-card p-6 opacity-50">
-          <h2 className="font-bold text-white mb-1">Announcements</h2>
-          <p className="text-text-muted text-sm">Coming in Phase 4</p>
+          <h2 className="font-bold text-white mb-1">Season Setup Wizard</h2>
+          <p className="text-text-muted text-sm">Coming in Phase B</p>
         </div>
 
         <div className="glass-card p-6 opacity-50">
-          <h2 className="font-bold text-white mb-1">Newsletter</h2>
-          <p className="text-text-muted text-sm">Coming in Phase 4</p>
+          <h2 className="font-bold text-white mb-1">Draft Board</h2>
+          <p className="text-text-muted text-sm">Coming in Phase C</p>
         </div>
       </div>
     </div>
