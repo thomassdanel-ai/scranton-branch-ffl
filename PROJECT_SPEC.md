@@ -795,28 +795,28 @@ The cron runs every 5 min via Vercel, but the sync logic checks the NFL state an
 - [ ] Session tokens with server-side store (security audit item #3)
 - [ ] Zod schema validation on bracket writes (security audit item #10)
 
-### Phase A: Member Schema + Commish CRM (Next Up)
+### Phase A: Member Schema + Commish CRM ✅
 **Goal:** Replace the spreadsheet with a real member management system.
-- [ ] Create `organizations` table, seed Scranton Branch row
-- [ ] Create `members` table
-- [ ] Update `seasons` table (add org_id, season_number, status)
-- [ ] Create `leagues` table (per-season, replaces hard-coded config for DB)
-- [ ] Create `member_seasons` join table
+- [x] Create `organizations` table, seed Scranton Branch row
+- [x] Create `members` table
+- [x] Update `seasons` table (add org_id, season_number, status)
+- [x] Create `leagues` table (per-season, replaces hard-coded config for DB)
+- [x] Create `member_seasons` join table
 - [ ] Backfill Season 1 and Season 2 data from existing Supabase + spreadsheet
-- [ ] Build Members tab on commish dashboard (table, add, edit, deactivate)
-- [ ] Build Member detail view (season history, stats)
+- [x] Build Members tab on commish dashboard (table, add, edit, deactivate)
+- [x] Build Member detail view (season history, stats)
 
-### Phase B: Season Setup Wizard
+### Phase B: Season Setup Wizard ✅
 **Goal:** Automate pre-season logistics.
-- [ ] Build Season Setup wizard (Steps 1–4: create season, intake, randomize leagues, draft order)
-- [ ] Build Step 5: Sleeper league linking (auto-match rosters to members)
+- [x] Build Season Setup wizard (Steps 1–4: create season, intake, randomize leagues, draft order)
+- [x] Build Step 5: Sleeper league linking (auto-match rosters to members)
 - [ ] Migrate existing season management to use new schema
 - [ ] Update power rankings, bracket, and standings queries to read from new schema
 
-### Phase C: Draft Board
+### Phase C: Draft Board (Next Up)
 **Goal:** Replace the Excel + Teams call draft with a live on-site experience.
-- [ ] Create `draft_boards` and `draft_picks` tables
-- [ ] Build snake draft pick pre-generation logic
+- [x] Create `draft_boards` and `draft_picks` tables (done in Phase A migration)
+- [x] Build snake draft pick pre-generation logic (done in Phase B draft order lock)
 - [ ] Build draft board UI (grid view, pick entry, current pick indicator)
 - [ ] Implement Supabase Realtime for live pick updates
 - [ ] Build mock draft mode (reset, re-run, no permanent save)
@@ -889,6 +889,6 @@ All existing public pages continue to work during migration. The new schema is a
 
 ---
 
-*Last updated: March 24, 2026*
+*Last updated: March 24, 2026 (Phases A+B shipped)*
 *Commissioner: T_Danel*
 *Platform Spec: v1 (PLATFORM_SPEC3-24.md)*
