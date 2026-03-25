@@ -1,0 +1,173 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createServiceClient } from '@/lib/supabase/server';
+
+function isAuthed(): boolean {
+  const cookieStore = cookies();
+  return cookieStore.get('admin_auth')?.value === 'true';
+}
+
+async function getOrgId(supabase: ReturnType<typeof createServiceClient>): Promise<string> {
+  const { data } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('slug', 'scranton-branch-ffl')
+    .single();
+  if (!data) throw new Error('Organization not found');
+  return data.id;
+}
+
+// GET: Return current setup-phase season with all related data
+export async function GET() {
+  if (!isAuthed()) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const supabase = createServiceClient();
+  const orgId = await getOrgId(supabase);
+
+  // Find a season in setup or pre_draft status
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('*')
+    .eq('org_id', orgId)
+    .in('status', ['setup', 'pre_draft'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!season) {
+    // Get latest season number for auto-increment
+    const { data: latest } = await supabase
+      .from('seasons')
+      .select('season_number')
+      .eq('org_id', orgId)
+      .order('season_number', { ascending: false })
+      .limit(1)
+      .single();
+
+    return NextResponse.json({
+      season: null,
+      nextSeasonNumber: (latest?.season_number || 0) + 1,
+    });
+  }
+
+  // Fetch leagues for this season
+  const { data: leagues } = await supabase
+    .from('leagues')
+    .select('*')
+    .eq('season_id', season.id)
+    .order('name');
+
+  // Fetch all active/inactive members
+  const { data: members } = await supabase
+    .from('members')
+    .select('*')
+    .eq('org_id', orgId)
+    .in('status', ['active', 'inactive'])
+    .order('full_name');
+
+  // Fetch member_seasons for this season
+  const { data: memberSeasons } = await supabase
+    .from('member_seasons')
+    .select('*')
+    .eq('season_id', season.id);
+
+  return NextResponse.json({
+    season,
+    leagues: leagues || [],
+    members: members || [],
+    memberSeasons: memberSeasons || [],
+  });
+}
+
+// POST: Create a new season (Step 1)
+export async function POST(req: NextRequest) {
+  if (!isAuthed()) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const { year, numLeagues, leagueNames, rosterSize } = body as {
+    year: number;
+    numLeagues: number;
+    leagueNames: string[];
+    rosterSize: number;
+  };
+
+  if (!year || year < 2020 || year > 2040) {
+    return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
+  }
+  if (!numLeagues || numLeagues < 1 || numLeagues > 4) {
+    return NextResponse.json({ error: 'Number of leagues must be 1-4' }, { status: 400 });
+  }
+  if (!leagueNames || leagueNames.length !== numLeagues) {
+    return NextResponse.json({ error: 'League names must match number of leagues' }, { status: 400 });
+  }
+  if (!rosterSize || rosterSize < 4 || rosterSize > 16) {
+    return NextResponse.json({ error: 'Roster size must be 4-16' }, { status: 400 });
+  }
+
+  const supabase = createServiceClient();
+  const orgId = await getOrgId(supabase);
+
+  // Check no season already in setup/pre_draft/drafting/active
+  const { data: existing } = await supabase
+    .from('seasons')
+    .select('id, status')
+    .eq('org_id', orgId)
+    .in('status', ['setup', 'pre_draft', 'drafting', 'active']);
+
+  if (existing && existing.length > 0) {
+    return NextResponse.json(
+      { error: 'A season is already in progress. Complete or archive it first.' },
+      { status: 409 }
+    );
+  }
+
+  // Get next season number
+  const { data: latest } = await supabase
+    .from('seasons')
+    .select('season_number')
+    .eq('org_id', orgId)
+    .order('season_number', { ascending: false })
+    .limit(1)
+    .single();
+
+  const seasonNumber = (latest?.season_number || 0) + 1;
+
+  // Create season
+  const { data: season, error: seasonErr } = await supabase
+    .from('seasons')
+    .insert({
+      org_id: orgId,
+      season_number: seasonNumber,
+      year,
+      status: 'setup',
+      num_leagues: numLeagues,
+      roster_size_per_league: rosterSize,
+    })
+    .select()
+    .single();
+
+  if (seasonErr || !season) {
+    return NextResponse.json({ error: 'Failed to create season' }, { status: 500 });
+  }
+
+  // Create league rows
+  const leagueRows = leagueNames.map((name: string) => ({
+    org_id: orgId,
+    season_id: season.id,
+    name: name.trim(),
+  }));
+
+  const { error: leagueErr } = await supabase.from('leagues').insert(leagueRows);
+
+  if (leagueErr) {
+    // Rollback season
+    await supabase.from('seasons').delete().eq('id', season.id);
+    return NextResponse.json({ error: 'Failed to create leagues' }, { status: 500 });
+  }
+
+  return NextResponse.json({ season }, { status: 201 });
+}

@@ -91,10 +91,10 @@ export default function AdminPage() {
           <p className="text-text-muted text-sm">Snapshot season for historical record</p>
         </Link>
 
-        <div className="glass-card p-6 opacity-50">
+        <Link href="/admin/season-setup" className="glass-card p-6 hover:bg-white/5 transition-colors">
           <h2 className="font-bold text-white mb-1">Season Setup Wizard</h2>
-          <p className="text-text-muted text-sm">Coming in Phase B</p>
-        </div>
+          <p className="text-text-muted text-sm">Create season, intake, randomize, draft order</p>
+        </Link>
 
         <div className="glass-card p-6 opacity-50">
           <h2 className="font-bold text-white mb-1">Draft Board</h2>
