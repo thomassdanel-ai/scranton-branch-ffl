@@ -69,7 +69,10 @@ export default function PublicDraftBoard() {
 
   const fetchBoard = useCallback(async () => {
     const res = await fetch(`/api/draft?boardId=${boardId}`);
-    if (!res.ok) return;
+    if (!res.ok) {
+      setLoading(false);
+      return;
+    }
     const data = await res.json();
     setBoard(data.board);
     setLeagueName(data.leagueName);

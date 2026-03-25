@@ -91,7 +91,10 @@ export default function DraftPage() {
 
   const fetchOverview = useCallback(async () => {
     const res = await fetch('/api/admin/draft');
-    if (!res.ok) return;
+    if (!res.ok) {
+      setLoading(false);
+      return;
+    }
     const data = await res.json();
     setSeason(data.season);
     setLeagues(data.leagues || []);
