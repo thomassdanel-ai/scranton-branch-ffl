@@ -1,6 +1,6 @@
 import { getTransactions, getNFLState } from '@/lib/sleeper/api';
 import { getLeagueTeams, getLastPlayedWeek } from '@/lib/sleeper/league-data';
-import { LEAGUE_CONFIG, type LeagueInfo } from '@/config/leagues';
+import { getSeasonLeagues, type LeagueInfo } from '@/lib/config';
 import type { SleeperTransaction } from '@/lib/sleeper/types';
 import type { LeagueTeam } from '@/lib/sleeper/league-data';
 
@@ -37,7 +37,7 @@ async function fetchLeagueTransactions(
   const weekNumbers = Array.from({ length: maxWeek }, (_, i) => i + 1);
   const weekResults = await Promise.all(
     weekNumbers.map((week) =>
-      getTransactions(league.id, week).catch(() => [] as SleeperTransaction[])
+      getTransactions(league.sleeperId, week).catch(() => [] as SleeperTransaction[])
     )
   );
 
@@ -48,7 +48,7 @@ async function fetchLeagueTransactions(
       if (txn.status !== 'complete') continue;
       allTransactions.push({
         ...txn,
-        leagueId: league.id,
+        leagueId: league.sleeperId,
         leagueName: league.name,
         leagueShortName: league.shortName,
         leagueColor: league.color,
@@ -61,14 +61,14 @@ async function fetchLeagueTransactions(
 }
 
 export async function getAllTransactions(): Promise<EnrichedTransaction[]> {
-  const leagues = LEAGUE_CONFIG.leagues;
+  const leagues = await getSeasonLeagues();
 
   // Fetch max week and teams for each league in parallel
   const leagueData = await Promise.all(
     leagues.map(async (league) => {
       const [maxWeek, teams] = await Promise.all([
-        getMaxWeek(league.id),
-        getLeagueTeams(league.id),
+        getMaxWeek(league.sleeperId),
+        getLeagueTeams(league.sleeperId),
       ]);
       return { league, maxWeek, teams };
     })

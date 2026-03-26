@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { getLeagueStandings } from '@/lib/sleeper/league-data';
 import { computePowerRankings } from '@/lib/rankings/compute';
 import { loadBracket } from '@/lib/bracket/engine';
-import { LEAGUE_CONFIG } from '@/config/leagues';
+import { getSeasonLeagues } from '@/lib/config';
 import { isAuthed } from '@/lib/auth';
 
 /**
@@ -55,18 +55,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This season has already been archived' }, { status: 400 });
   }
 
-  // Gather final standings for each league
+  // Gather final standings for each league from DB
+  const leagues = await getSeasonLeagues(season.id);
   const finalStandings: Record<string, unknown> = {};
-  for (const league of LEAGUE_CONFIG.leagues) {
+  for (const league of leagues) {
     try {
-      const standings = await getLeagueStandings(league.id);
-      finalStandings[league.id] = {
+      const standings = await getLeagueStandings(league.sleeperId);
+      finalStandings[league.sleeperId] = {
         leagueName: league.name,
         leagueColor: league.color,
         standings,
       };
     } catch {
-      finalStandings[league.id] = { leagueName: league.name, error: 'Failed to fetch' };
+      finalStandings[league.sleeperId] = { leagueName: league.name, error: 'Failed to fetch' };
     }
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { isAuthed } from '@/lib/auth';
+import { DEFAULT_LEAGUE_COLORS, DEFAULT_LEAGUE_SHORT_NAMES, DEFAULT_CHAMPIONSHIP } from '@/config/constants';
 
 async function getOrgId(supabase: ReturnType<typeof createServiceClient>): Promise<string> {
   const { data } = await supabase
@@ -21,12 +22,12 @@ export async function GET() {
   const supabase = createServiceClient();
   const orgId = await getOrgId(supabase);
 
-  // Find a season in setup or pre_draft status
+  // Find a season in setup, pre_draft, or drafting status
   const { data: season } = await supabase
     .from('seasons')
     .select('*')
     .eq('org_id', orgId)
-    .in('status', ['setup', 'pre_draft'])
+    .in('status', ['setup', 'pre_draft', 'drafting'])
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
@@ -52,7 +53,7 @@ export async function GET() {
     .from('leagues')
     .select('*')
     .eq('season_id', season.id)
-    .order('name');
+    .order('position', { ascending: true });
 
   // Fetch all active/inactive members
   const { data: members } = await supabase
@@ -137,7 +138,7 @@ export async function POST(req: NextRequest) {
     .update({ is_current: false })
     .eq('is_current', true);
 
-  // Create season
+  // Create season with championship settings
   const { data: season, error: seasonErr } = await supabase
     .from('seasons')
     .insert({
@@ -148,6 +149,7 @@ export async function POST(req: NextRequest) {
       is_current: true,
       num_leagues: numLeagues,
       roster_size_per_league: rosterSize,
+      settings: { championship: DEFAULT_CHAMPIONSHIP },
     })
     .select()
     .single();
@@ -156,11 +158,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create season' }, { status: 500 });
   }
 
-  // Create league rows
-  const leagueRows = leagueNames.map((name: string) => ({
+  // Create league rows with color, short_name, position
+  const leagueRows = leagueNames.map((name: string, i: number) => ({
     org_id: orgId,
     season_id: season.id,
     name: name.trim(),
+    short_name: DEFAULT_LEAGUE_SHORT_NAMES[i] ?? name.trim().slice(0, 4),
+    color: DEFAULT_LEAGUE_COLORS[i] ?? '#6b7280',
+    position: i,
   }));
 
   const { error: leagueErr } = await supabase.from('leagues').insert(leagueRows);

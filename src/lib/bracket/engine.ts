@@ -1,5 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server';
-import { LEAGUE_CONFIG } from '@/config/leagues';
+import { getSeasonLeagues, getChampionshipConfig } from '@/lib/config';
 
 export type BracketTeam = {
   rosterId: number;
@@ -227,6 +227,10 @@ export function computeBracketStatus(matchups: BracketMatchup[]): 'pending' | 'i
   return 'pending';
 }
 
-export function getQualifierCount(): number {
-  return LEAGUE_CONFIG.leagues.length * LEAGUE_CONFIG.championship.qualifiersPerLeague;
+export async function getQualifierCount(): Promise<number> {
+  const [leagues, championship] = await Promise.all([
+    getSeasonLeagues(),
+    getChampionshipConfig(),
+  ]);
+  return leagues.length * championship.qualifiersPerLeague;
 }

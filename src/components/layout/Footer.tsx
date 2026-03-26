@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LEAGUE_CONFIG } from '@/config/leagues';
+import { ORG_NAME } from '@/config/constants';
 
 export default function Footer() {
   const [showToby, setShowToby] = useState(false);
+  const currentYear = new Date().getFullYear().toString();
 
   return (
     <>
@@ -14,7 +15,7 @@ export default function Footer() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="flex flex-col items-center gap-2 text-center">
             <p className="text-text-muted text-sm">
-              {LEAGUE_CONFIG.name} — {LEAGUE_CONFIG.currentSeason} Season
+              {ORG_NAME} — {currentYear} Season
             </p>
             <p className="text-text-muted text-xs">
               Scranton Branch —{' '}

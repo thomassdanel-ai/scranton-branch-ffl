@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LEAGUE_CONFIG } from '@/config/leagues';
 import { getLeague, getLeagueRosters, getMatchups } from '@/lib/sleeper/api';
 import { createServiceClient } from '@/lib/supabase/server';
 import { isAuthed } from '@/lib/auth';
 import { buildWeeklyResults, buildPlayerScores } from '@/lib/weekly-results';
+import { getSeasonLeagues, getActiveSeasonId } from '@/lib/config';
 
 // POST: Backfill weekly results for all leagues, all weeks played
 export async function POST(req: NextRequest) {
@@ -16,39 +16,24 @@ export async function POST(req: NextRequest) {
 
   const supabase = createServiceClient();
 
-  // Find the season ID if not provided
   let sId: string = seasonId || '';
   if (!sId) {
-    // Try status-based lookup first (any in-progress season)
-    const { data: byStatus } = await supabase
-      .from('seasons')
-      .select('id')
-      .in('status', ['active', 'drafting', 'pre_draft', 'setup'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (byStatus) {
-      sId = byStatus.id;
-    } else {
-      // Fallback: old is_current boolean
-      const { data: byCurrent } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .limit(1)
-        .single();
-      if (!byCurrent) {
-        return NextResponse.json({ error: 'No current season found' }, { status: 400 });
-      }
-      sId = byCurrent.id;
+    const activeId = await getActiveSeasonId();
+    if (!activeId) {
+      return NextResponse.json({ error: 'No current season found' }, { status: 400 });
     }
+    sId = activeId;
+  }
+
+  const leagues = await getSeasonLeagues(sId);
+  if (!leagues.length) {
+    return NextResponse.json({ error: 'No leagues found for this season' }, { status: 400 });
   }
 
   // Determine max week from rosters if not provided
   let weeksToFetch = maxWeek;
   if (!weeksToFetch) {
-    const rosters = await getLeagueRosters(LEAGUE_CONFIG.leagues[0].id);
+    const rosters = await getLeagueRosters(leagues[0].sleeperId);
     if (rosters.length > 0) {
       weeksToFetch = Math.max(
         ...rosters.map((r) => r.settings.wins + r.settings.losses + r.settings.ties)
@@ -58,14 +43,13 @@ export async function POST(req: NextRequest) {
   }
 
   const summary: Record<string, { weeks: number; rows: number }> = {};
-
   let totalPlayerRows = 0;
 
-  for (const league of LEAGUE_CONFIG.leagues) {
+  for (const league of leagues) {
     let totalRows = 0;
     const [rosters, leagueData] = await Promise.all([
-      getLeagueRosters(league.id),
-      getLeague(league.id),
+      getLeagueRosters(league.sleeperId),
+      getLeague(league.sleeperId),
     ]);
     const rosterPositions = leagueData.roster_positions.filter(
       (pos) => pos !== 'BN' && pos !== 'IR'
@@ -73,10 +57,10 @@ export async function POST(req: NextRequest) {
 
     for (let week = 1; week <= weeksToFetch; week++) {
       try {
-        const matchups = await getMatchups(league.id, week);
+        const matchups = await getMatchups(league.sleeperId, week);
         if (!matchups.length) continue;
 
-        const weeklyRows = buildWeeklyResults(sId, league.id, week, matchups, rosters);
+        const weeklyRows = buildWeeklyResults(sId, league.sleeperId, week, matchups, rosters);
         if (weeklyRows.length > 0) {
           const { error } = await supabase
             .from('weekly_results')
@@ -88,8 +72,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Also save per-player scores (starters + bench)
-        const playerRows = buildPlayerScores(sId, league.id, week, matchups, rosterPositions);
+        const playerRows = buildPlayerScores(sId, league.sleeperId, week, matchups, rosterPositions);
         if (playerRows.length > 0) {
           const { error } = await supabase
             .from('player_weekly_scores')
@@ -97,7 +80,7 @@ export async function POST(req: NextRequest) {
           if (!error) totalPlayerRows += playerRows.length;
         }
       } catch {
-        // Skip weeks with no data (e.g., future weeks)
+        // Skip weeks with no data
       }
     }
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { DEFAULT_LEAGUE_NAMES } from '@/config/constants';
 
 type Season = {
   id: string;
@@ -43,8 +44,6 @@ type SleeperRosterInfo = {
   team_name: string | null;
 };
 
-const DEFAULT_LEAGUE_NAMES = ['Sales', 'Accounting', 'Warehouse', 'HR'];
-
 export default function SeasonSetupPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -56,14 +55,19 @@ export default function SeasonSetupPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Step 1 form
+  // Step 1: Roster management
+  const [confirmations, setConfirmations] = useState<Record<string, 'confirmed' | 'declined' | 'pending'>>({});
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberDisplay, setNewMemberDisplay] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [memberSearch, setMemberSearch] = useState('');
+
+  // Step 2: Season & Leagues form
   const [year, setYear] = useState(new Date().getFullYear());
   const [numLeagues, setNumLeagues] = useState(2);
   const [leagueNames, setLeagueNames] = useState(DEFAULT_LEAGUE_NAMES.slice(0, 2));
   const [rosterSize, setRosterSize] = useState(10);
-
-  // Step 2
-  const [confirmations, setConfirmations] = useState<Record<string, 'confirmed' | 'declined' | 'pending'>>({});
 
   // Step 3
   const [assignments, setAssignments] = useState<Record<string, string>>({});
@@ -116,22 +120,67 @@ export default function SeasonSetupPage() {
 
   // Determine current step based on season status
   function getCurrentStep(): number {
-    if (!season) return 1;
-    if (season.status === 'setup' && memberSeasons.length === 0) {
-      return members.length > 0 ? 2 : 2;
+    if (!season) {
+      // No season yet — Step 1 (roster) or Step 2 (create season)
+      return 1;
     }
+    if (season.status === 'setup' && memberSeasons.length === 0) return 2;
     if (season.status === 'setup') return 3;
-    if (season.status === 'pre_draft') {
-      const hasOrders = memberSeasons.some((ms) => ms.draft_position !== null);
-      return hasOrders ? 4 : 4;
-    }
+    if (season.status === 'pre_draft') return 4;
     if (season.status === 'drafting' || season.status === 'active') return 5;
     return 1;
   }
 
   const currentStep = getCurrentStep();
 
-  // Step 1: Create Season
+  // Step 1: Inline add member
+  async function addMember(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newMemberName.trim()) return;
+    setError('');
+    setSaving(true);
+
+    const res = await fetch('/api/admin/members', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        full_name: newMemberName.trim(),
+        display_name: newMemberDisplay.trim() || null,
+        email: newMemberEmail.trim() || null,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      setError(err.error || 'Failed to add member');
+      setSaving(false);
+      return;
+    }
+
+    const data = await res.json();
+    const newMember = data.member;
+    setMembers((prev) => [...prev, newMember]);
+    setConfirmations((prev) => ({ ...prev, [newMember.id]: 'confirmed' }));
+    setNewMemberName('');
+    setNewMemberDisplay('');
+    setNewMemberEmail('');
+    setShowAddForm(false);
+    setSaving(false);
+  }
+
+  async function deleteMember(memberId: string) {
+    const res = await fetch(`/api/admin/members/${memberId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      setConfirmations((prev) => {
+        const next = { ...prev };
+        delete next[memberId];
+        return next;
+      });
+    }
+  }
+
+  // Step 2: Create Season & save intake
   async function createSeason(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -150,24 +199,19 @@ export default function SeasonSetupPage() {
       return;
     }
 
-    setSaving(false);
-    fetchState();
-  }
+    const data = await res.json();
+    const seasonId = data.season.id;
 
-  // Step 2: Save intake
-  async function saveIntake() {
-    setError('');
-    setSaving(true);
-
-    const res = await fetch('/api/admin/setup/intake', {
+    // Also save intake confirmations
+    const intakeRes = await fetch('/api/admin/setup/intake', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seasonId: season!.id, confirmations }),
+      body: JSON.stringify({ seasonId, confirmations }),
     });
 
-    if (!res.ok) {
-      const err = await res.json();
-      setError(err.error || 'Failed to save intake');
+    if (!intakeRes.ok) {
+      const err = await intakeRes.json();
+      setError(err.error || 'Season created but intake save failed');
     }
 
     setSaving(false);
@@ -296,18 +340,33 @@ export default function SeasonSetupPage() {
   }
 
   // Helpers
-  const confirmedMembers = members.filter((m) => confirmations[m.id] === 'confirmed' || (confirmations[m.id] === 'pending' && m.status === 'active'));
-  const targetCount = season ? season.num_leagues * season.roster_size_per_league : numLeagues * rosterSize;
   const confirmedCount = Object.values(confirmations).filter((v) => v === 'confirmed').length;
+
+  // Suggest league splits based on confirmed count
+  function getSuggestedSplits(count: number): string {
+    if (count === 0) return '';
+    const suggestions: string[] = [];
+    for (let n = 2; n <= 4; n++) {
+      if (count % n === 0 && count / n >= 4) {
+        suggestions.push(`${n} leagues x ${count / n}`);
+      }
+    }
+    if (suggestions.length === 0) {
+      const best = count >= 16 ? 2 : 2;
+      suggestions.push(`${best} leagues x ${Math.ceil(count / best)}`);
+    }
+    return suggestions.join(' or ');
+  }
+
+  const filteredMembers = memberSearch
+    ? members.filter((m) =>
+        (m.full_name + ' ' + (m.display_name || '')).toLowerCase().includes(memberSearch.toLowerCase())
+      )
+    : members;
 
   function getMemberName(memberId: string): string {
     const m = members.find((x) => x.id === memberId);
     return m?.display_name || m?.full_name || 'Unknown';
-  }
-
-  function getLeagueName(leagueId: string): string {
-    const l = leagues.find((x) => x.id === leagueId);
-    return l?.name || 'Unknown';
   }
 
   if (loading) {
@@ -319,9 +378,9 @@ export default function SeasonSetupPage() {
   }
 
   const steps = [
-    { num: 1, label: 'Create Season' },
-    { num: 2, label: 'Member Intake' },
-    { num: 3, label: 'League Randomization' },
+    { num: 1, label: 'Roster' },
+    { num: 2, label: 'Season & Leagues' },
+    { num: 3, label: 'Randomize' },
     { num: 4, label: 'Draft Order' },
     { num: 5, label: 'Sleeper Linking' },
   ];
@@ -343,7 +402,7 @@ export default function SeasonSetupPage() {
             className={`flex-1 text-center py-2 text-xs font-medium rounded ${
               s.num === currentStep
                 ? 'bg-primary text-white'
-                : s.num < currentStep || (season && s.num <= currentStep)
+                : s.num < currentStep
                   ? 'bg-accent-green/20 text-accent-green'
                   : 'bg-bg-tertiary text-text-muted'
             }`}
@@ -355,10 +414,144 @@ export default function SeasonSetupPage() {
 
       {error && <p className="text-accent-red text-sm">{error}</p>}
 
-      {/* Step 1: Create Season */}
+      {/* Step 1: Roster Management */}
       {!season && (
+        <div className="glass-card p-6 space-y-4">
+          <h2 className="text-lg font-bold text-white">Step 1: Manage Roster</h2>
+          <p className="text-text-muted text-sm">
+            Add, remove, and confirm members before creating a season. Confirmed members will be available for league assignment.
+          </p>
+
+          {/* Confirmed count + suggestion */}
+          <div className={`text-sm font-medium px-3 py-2 rounded-lg ${
+            confirmedCount >= 8
+              ? 'bg-accent-green/20 text-accent-green'
+              : confirmedCount > 0
+                ? 'bg-yellow-500/20 text-yellow-400'
+                : 'bg-bg-tertiary text-text-secondary'
+          }`}>
+            {confirmedCount} confirmed
+            {confirmedCount > 0 && ` — suggested: ${getSuggestedSplits(confirmedCount)}`}
+          </div>
+
+          {/* Search */}
+          {members.length > 6 && (
+            <input
+              type="text"
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              placeholder="Search members..."
+              className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+            />
+          )}
+
+          {/* Member list */}
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {filteredMembers.map((m) => (
+              <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary/50">
+                <div className="min-w-0">
+                  <span className="text-white font-medium">{m.display_name || m.full_name}</span>
+                  {m.display_name && (
+                    <span className="text-text-muted text-xs ml-2">({m.full_name})</span>
+                  )}
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => setConfirmations((prev) => ({
+                      ...prev,
+                      [m.id]: prev[m.id] === 'confirmed' ? 'declined' : 'confirmed',
+                    }))}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      confirmations[m.id] === 'confirmed'
+                        ? 'bg-accent-green text-white'
+                        : 'bg-bg-tertiary text-text-muted hover:text-white'
+                    }`}
+                  >
+                    {confirmations[m.id] === 'confirmed' ? 'Confirmed' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete ${m.display_name || m.full_name}?`)) deleteMember(m.id);
+                    }}
+                    className="px-2 py-1 rounded text-xs text-accent-red/70 hover:text-accent-red hover:bg-accent-red/10 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Inline add form */}
+          {showAddForm ? (
+            <form onSubmit={addMember} className="p-4 rounded-lg bg-bg-tertiary/50 space-y-3">
+              <h3 className="text-sm font-bold text-white">Add New Member</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  placeholder="Full Name *"
+                  required
+                  className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                />
+                <input
+                  type="text"
+                  value={newMemberDisplay}
+                  onChange={(e) => setNewMemberDisplay(e.target.value)}
+                  placeholder="Display Name"
+                  className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                />
+                <input
+                  type="email"
+                  value={newMemberEmail}
+                  onChange={(e) => setNewMemberEmail(e.target.value)}
+                  placeholder="Email"
+                  className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={saving || !newMemberName.trim()}
+                  className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark disabled:opacity-50"
+                >
+                  {saving ? 'Adding...' : 'Add Member'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(false)}
+                  className="px-4 py-2 text-text-muted hover:text-white text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="px-4 py-2 bg-bg-tertiary text-text-secondary rounded-lg text-sm font-semibold hover:text-white transition-colors"
+            >
+              + Add New Member
+            </button>
+          )}
+
+          {/* Continue to Step 2 */}
+          {confirmedCount > 0 && (
+            <p className="text-text-muted text-xs">
+              When your roster is ready, scroll down to create the season.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Step 2: Season & Leagues — shown below Step 1 when no season exists */}
+      {!season && confirmedCount > 0 && (
         <form onSubmit={createSeason} className="glass-card p-6 space-y-4">
-          <h2 className="text-lg font-bold text-white">Step 1: Create Season</h2>
+          <h2 className="text-lg font-bold text-white">Step 2: Create Season & Leagues</h2>
+          <p className="text-text-muted text-sm">
+            {confirmedCount} confirmed members. Configure your season below.
+          </p>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -430,6 +623,11 @@ export default function SeasonSetupPage() {
 
           <p className="text-text-muted text-sm">
             Target: {numLeagues * rosterSize} members ({numLeagues} leagues x {rosterSize} per league)
+            {confirmedCount !== numLeagues * rosterSize && (
+              <span className="text-yellow-400 ml-2">
+                — you have {confirmedCount} confirmed
+              </span>
+            )}
           </p>
 
           <button
@@ -437,81 +635,79 @@ export default function SeasonSetupPage() {
             disabled={saving}
             className="px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
           >
-            {saving ? 'Creating...' : 'Create Season'}
+            {saving ? 'Creating...' : 'Create Season & Save Roster'}
           </button>
         </form>
       )}
 
-      {/* Step 2: Member Intake */}
+      {/* Step 2 (existing season, no member_seasons yet): Member intake confirmation */}
       {season && season.status === 'setup' && memberSeasons.length === 0 && (
         <div className="glass-card p-6 space-y-4">
-          <h2 className="text-lg font-bold text-white">Step 2: Member Intake</h2>
+          <h2 className="text-lg font-bold text-white">Step 2: Confirm Roster</h2>
 
           <div className={`text-sm font-medium px-3 py-2 rounded-lg ${
-            confirmedCount === targetCount
+            confirmedCount === season.num_leagues * season.roster_size_per_league
               ? 'bg-accent-green/20 text-accent-green'
-              : confirmedCount > targetCount
+              : confirmedCount > season.num_leagues * season.roster_size_per_league
                 ? 'bg-yellow-500/20 text-yellow-400'
                 : 'bg-bg-tertiary text-text-secondary'
           }`}>
-            {confirmedCount}/{targetCount} confirmed
-            {confirmedCount < targetCount && ` — need ${targetCount - confirmedCount} more`}
-            {confirmedCount > targetCount && ` — consider adding a league`}
+            {confirmedCount}/{season.num_leagues * season.roster_size_per_league} confirmed
           </div>
 
-          {members.length === 0 ? (
-            <p className="text-text-muted text-sm">
-              No members yet. <Link href="/admin/members" className="text-primary hover:underline">Add members first</Link>, then come back here.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {members.map((m) => (
-                <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary/50">
-                  <div>
-                    <span className="text-white font-medium">{m.display_name || m.full_name}</span>
-                    {m.display_name && (
-                      <span className="text-text-muted text-xs ml-2">({m.full_name})</span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    {(['confirmed', 'pending', 'declined'] as const).map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => setConfirmations((prev) => ({ ...prev, [m.id]: status }))}
-                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                          confirmations[m.id] === status
-                            ? status === 'confirmed'
-                              ? 'bg-accent-green text-white'
-                              : status === 'declined'
-                                ? 'bg-accent-red text-white'
-                                : 'bg-yellow-500 text-white'
-                            : 'bg-bg-tertiary text-text-muted hover:text-white'
-                        }`}
-                      >
-                        {status}
-                      </button>
-                    ))}
-                  </div>
+          <div className="space-y-2">
+            {members.map((m) => (
+              <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary/50">
+                <div>
+                  <span className="text-white font-medium">{m.display_name || m.full_name}</span>
+                  {m.display_name && (
+                    <span className="text-text-muted text-xs ml-2">({m.full_name})</span>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            <button
-              onClick={saveIntake}
-              disabled={saving || confirmedCount === 0}
-              className="px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Save & Continue to Step 3'}
-            </button>
-            <Link
-              href="/admin/members"
-              className="px-4 py-2 text-text-secondary hover:text-white transition-colors text-sm flex items-center"
-            >
-              + Add New Members
-            </Link>
+                <div className="flex gap-2">
+                  {(['confirmed', 'pending', 'declined'] as const).map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => setConfirmations((prev) => ({ ...prev, [m.id]: status }))}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        confirmations[m.id] === status
+                          ? status === 'confirmed'
+                            ? 'bg-accent-green text-white'
+                            : status === 'declined'
+                              ? 'bg-accent-red text-white'
+                              : 'bg-yellow-500 text-white'
+                          : 'bg-bg-tertiary text-text-muted hover:text-white'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
+
+          <button
+            onClick={async () => {
+              setError('');
+              setSaving(true);
+              const res = await fetch('/api/admin/setup/intake', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ seasonId: season.id, confirmations }),
+              });
+              if (!res.ok) {
+                const err = await res.json();
+                setError(err.error || 'Failed to save intake');
+              }
+              setSaving(false);
+              fetchState();
+            }}
+            disabled={saving || confirmedCount === 0}
+            className="px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save & Continue to Step 3'}
+          </button>
         </div>
       )}
 
@@ -659,7 +855,7 @@ export default function SeasonSetupPage() {
         <div className="glass-card p-6 space-y-4">
           <h2 className="text-lg font-bold text-white">Step 5: Link Sleeper Leagues</h2>
           <p className="text-text-muted text-sm">
-            Enter the Sleeper league IDs for each league, then map rosters to members.
+            Paste the Sleeper league URL or ID for each league, then map rosters to members.
           </p>
 
           {leagues.map((league) => (
@@ -670,8 +866,14 @@ export default function SeasonSetupPage() {
                 <input
                   type="text"
                   value={sleeperLinks[league.id] || ''}
-                  onChange={(e) => setSleeperLinks((prev) => ({ ...prev, [league.id]: e.target.value }))}
-                  placeholder="Sleeper League ID"
+                  onChange={(e) => {
+                    // Extract ID from Sleeper URL if pasted
+                    let val = e.target.value.trim();
+                    const urlMatch = val.match(/sleeper\.com\/leagues\/(\d+)/);
+                    if (urlMatch) val = urlMatch[1];
+                    setSleeperLinks((prev) => ({ ...prev, [league.id]: val }));
+                  }}
+                  placeholder="Sleeper League URL or ID"
                   className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
                 />
                 <button

@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LEAGUE_CONFIG } from '@/config/leagues';
+import { useLeagueConfig } from '@/components/providers/ConfigProvider';
+import { ORG_SHORT_NAME } from '@/config/constants';
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -15,6 +16,7 @@ const navLinks = [
 
 export default function Nav() {
   const pathname = usePathname();
+  const { leagues } = useLeagueConfig();
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-bg-primary/80 backdrop-blur-md">
@@ -23,7 +25,7 @@ export default function Nav() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <span className="text-accent-gold text-xl">🏆</span>
-            <span className="font-bold text-white">{LEAGUE_CONFIG.shortName}</span>
+            <span className="font-bold text-white">{ORG_SHORT_NAME}</span>
           </Link>
 
           {/* Desktop nav */}
@@ -44,10 +46,10 @@ export default function Nav() {
 
             {/* League dropdown quick links */}
             <div className="ml-2 flex items-center gap-1">
-              {LEAGUE_CONFIG.leagues.map((league) => (
+              {leagues.map((league) => (
                 <Link
-                  key={league.id}
-                  href={`/leagues/${league.id}`}
+                  key={league.sleeperId || league.dbId}
+                  href={`/leagues/${league.sleeperId}`}
                   className="px-2 py-1 rounded text-xs font-semibold transition-colors hover:opacity-80"
                   style={{ backgroundColor: `${league.color}22`, color: league.color, border: `1px solid ${league.color}44` }}
                 >
@@ -59,10 +61,10 @@ export default function Nav() {
 
           {/* Mobile menu — simplified */}
           <div className="md:hidden flex items-center gap-2">
-            {LEAGUE_CONFIG.leagues.map((league) => (
+            {leagues.map((league) => (
               <Link
-                key={league.id}
-                href={`/leagues/${league.id}`}
+                key={league.sleeperId || league.dbId}
+                href={`/leagues/${league.sleeperId}`}
                 className="px-2 py-1 rounded text-xs font-semibold"
                 style={{ backgroundColor: `${league.color}22`, color: league.color }}
               >

@@ -5,18 +5,17 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
 interface StandingsTeam {
-  team: {
-    rosterId: number;
-    teamName: string | null;
-    displayName: string;
-    avatar: string | null;
-    wins: number;
-    losses: number;
-    ties: number;
-    pointsFor: number;
-    pointsAgainst: number;
-    streak: string | null;
-  };
+  rosterId: number;
+  teamName: string | null;
+  displayName: string;
+  avatar: string | null;
+  wins: number;
+  losses: number;
+  ties: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  streak: string | null;
+  rank: number;
   inPlayoffPosition: boolean;
 }
 
@@ -189,36 +188,33 @@ export default function SeasonArchivePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {league.standings.map((entry, i) => {
-                    const t = entry.team;
-                    return (
+                  {league.standings.map((entry, i) => (
                       <tr
-                        key={t.rosterId}
+                        key={entry.rosterId}
                         className={`border-b border-white/5 ${entry.inPlayoffPosition ? 'bg-accent-green/5' : ''}`}
                       >
                         <td className="py-2 px-2 text-text-muted">{i + 1}</td>
                         <td className="py-2 px-2">
                           <div className="flex items-center gap-2">
-                            {t.avatar ? (
-                              <img src={t.avatar} alt="" className="w-6 h-6 rounded-full bg-bg-tertiary" />
+                            {entry.avatar ? (
+                              <img src={entry.avatar} alt="" className="w-6 h-6 rounded-full bg-bg-tertiary" />
                             ) : (
                               <div className="w-6 h-6 rounded-full bg-bg-tertiary" />
                             )}
                             <span className="text-white font-medium truncate">
-                              {t.teamName ?? t.displayName}
+                              {entry.teamName ?? entry.displayName}
                             </span>
                             {entry.inPlayoffPosition && (
                               <span className="text-accent-green text-[10px]">*</span>
                             )}
                           </div>
                         </td>
-                        <td className="py-2 px-2 text-center text-accent-green stat">{t.wins}</td>
-                        <td className="py-2 px-2 text-center text-accent-red stat">{t.losses}</td>
-                        <td className="py-2 px-2 text-right stat text-white">{t.pointsFor.toFixed(1)}</td>
-                        <td className="py-2 px-2 text-right stat text-text-muted">{t.pointsAgainst.toFixed(1)}</td>
+                        <td className="py-2 px-2 text-center text-accent-green stat">{entry.wins}</td>
+                        <td className="py-2 px-2 text-center text-accent-red stat">{entry.losses}</td>
+                        <td className="py-2 px-2 text-right stat text-white">{entry.pointsFor.toFixed(1)}</td>
+                        <td className="py-2 px-2 text-right stat text-text-muted">{entry.pointsAgainst.toFixed(1)}</td>
                       </tr>
-                    );
-                  })}
+                    ))}
                 </tbody>
               </table>
             </div>

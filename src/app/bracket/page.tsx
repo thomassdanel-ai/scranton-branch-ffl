@@ -1,17 +1,22 @@
-import { loadBracket, getQualifierCount } from '@/lib/bracket/engine';
-import { LEAGUE_CONFIG } from '@/config/leagues';
+import { loadBracket } from '@/lib/bracket/engine';
+import { getSeasonLeagues, getChampionshipConfig } from '@/lib/config';
 import BracketView from '@/components/bracket/BracketView';
+import { ORG_SHORT_NAME } from '@/config/constants';
 
 export const metadata = {
-  title: 'Championship Bracket | Scranton Branch FFL',
+  title: `Championship Bracket | ${ORG_SHORT_NAME}`,
   description: 'Cross-league championship bracket.',
 };
 
 export const revalidate = 300; // 5 min ISR
 
 export default async function BracketPage() {
-  const bracket = await loadBracket();
-  const qualifiers = getQualifierCount();
+  const [bracket, leagues, championship] = await Promise.all([
+    loadBracket(),
+    getSeasonLeagues(),
+    getChampionshipConfig(),
+  ]);
+  const qualifiers = leagues.length * championship.qualifiersPerLeague;
 
   if (!bracket) {
     return (
@@ -19,7 +24,7 @@ export default async function BracketPage() {
         <div>
           <h1 className="text-3xl font-extrabold text-white">Championship Bracket</h1>
           <p className="text-text-secondary mt-1">
-            Cross-league playoff bracket — top {LEAGUE_CONFIG.championship.qualifiersPerLeague} from each league qualify.
+            Cross-league playoff bracket — top {championship.qualifiersPerLeague} from each league qualify.
           </p>
         </div>
 
@@ -31,14 +36,14 @@ export default async function BracketPage() {
             once the regular season wraps up. Check back when playoffs begin!
           </p>
           <div className="flex flex-wrap justify-center gap-3 mt-4">
-            {LEAGUE_CONFIG.leagues.map((league) => (
+            {leagues.map((league) => (
               <div
-                key={league.id}
+                key={league.dbId}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-tertiary"
               >
                 <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: league.color }} />
                 <span className="text-sm text-text-secondary">
-                  Top {LEAGUE_CONFIG.championship.qualifiersPerLeague} from {league.name}
+                  Top {championship.qualifiersPerLeague} from {league.name}
                 </span>
               </div>
             ))}

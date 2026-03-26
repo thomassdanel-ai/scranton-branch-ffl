@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { getLeagueStandings, findLeagueConfig } from '@/lib/sleeper/league-data';
+import { findLeagueBySleeperIdAsync } from '@/lib/config';
+import { getLeagueStandings } from '@/lib/sleeper/league-data';
 import StandingsTable from '@/components/leagues/StandingsTable';
 
 interface Props {
@@ -7,7 +8,7 @@ interface Props {
 }
 
 export default async function LeagueStandingsPage({ params }: Props) {
-  const league = findLeagueConfig(params.leagueId);
+  const league = await findLeagueBySleeperIdAsync(params.leagueId);
   if (!league) notFound();
 
   const standings = await getLeagueStandings(params.leagueId);

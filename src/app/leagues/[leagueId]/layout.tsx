@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { findLeagueConfig } from '@/lib/sleeper/league-data';
+import { findLeagueBySleeperIdAsync } from '@/lib/config';
 import LeagueNav from '@/components/leagues/LeagueNav';
 import type { Metadata } from 'next';
 
@@ -9,15 +9,15 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: { params: { leagueId: string } }): Promise<Metadata> {
-  const league = findLeagueConfig(params.leagueId);
+  const league = await findLeagueBySleeperIdAsync(params.leagueId);
   if (!league) return {};
   return {
     title: `${league.name} League`,
   };
 }
 
-export default function LeagueLayout({ params, children }: Props) {
-  const league = findLeagueConfig(params.leagueId);
+export default async function LeagueLayout({ params, children }: Props) {
+  const league = await findLeagueBySleeperIdAsync(params.leagueId);
   if (!league) notFound();
 
   return (

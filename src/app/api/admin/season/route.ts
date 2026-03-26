@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { LEAGUE_CONFIG } from '@/config/leagues';
+import { getSeasonLeagues } from '@/lib/config';
 import { isAuthed } from '@/lib/auth';
 
 export async function GET() {
@@ -25,9 +25,10 @@ export async function GET() {
     .eq('is_current', true)
     .single()).data;
 
+  const leagues = data ? await getSeasonLeagues(data.id) : [];
   return NextResponse.json({
     season: data,
-    fallbackConfig: LEAGUE_CONFIG,
+    leagues,
   });
 }
 

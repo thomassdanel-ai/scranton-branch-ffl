@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { LEAGUE_CONFIG } from '@/config/leagues';
+import { useLeagueConfig } from '@/components/providers/ConfigProvider';
+import { ORG_SHORT_NAME } from '@/config/constants';
+import type { LeagueInfo } from '@/lib/config';
 
 interface BracketTeam {
   rosterId: number;
@@ -62,25 +64,34 @@ interface ManualSlot {
   rosterId?: number;
 }
 
-const LEAGUE_OPTIONS = LEAGUE_CONFIG.leagues.map((l: { id: string; name: string; color: string }) => ({
-  id: l.id,
-  name: l.name,
-  color: l.color,
-}));
-
-// Seeds: Sales #1=1, #2=2, #3=3, Acct #1=4, #2=5, #3=6
-function generateLeagueBracket(): BracketMatchup[] {
+function generateLeagueBracket(leagues: LeagueInfo[]): BracketMatchup[] {
+  if (leagues.length < 2) return [];
+  const l0 = leagues[0].shortName;
+  const l1 = leagues[1].shortName;
   return [
-    { id: 'W1-SALES', round: 1, position: 0, team1Seed: 2, team2Seed: 3, team1Score: null, team2Score: null, winningSeed: null, label: 'Sales Play-In (#2 vs #3)' },
-    { id: 'W1-ACCT', round: 1, position: 1, team1Seed: 5, team2Seed: 6, team1Score: null, team2Score: null, winningSeed: null, label: 'Accounting Play-In (#2 vs #3)' },
-    { id: 'W2-SALES', round: 2, position: 0, team1Seed: 1, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Sales Championship (#1 vs Play-In Winner)' },
-    { id: 'W2-ACCT', round: 2, position: 1, team1Seed: 4, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Accounting Championship (#1 vs Play-In Winner)' },
-    { id: 'FINAL', round: 3, position: 0, team1Seed: null, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: 'Scranton Branch Championship' },
+    { id: `W1-${l0}`, round: 1, position: 0, team1Seed: 2, team2Seed: 3, team1Score: null, team2Score: null, winningSeed: null, label: `${leagues[0].name} Play-In (#2 vs #3)` },
+    { id: `W1-${l1}`, round: 1, position: 1, team1Seed: 5, team2Seed: 6, team1Score: null, team2Score: null, winningSeed: null, label: `${leagues[1].name} Play-In (#2 vs #3)` },
+    { id: `W2-${l0}`, round: 2, position: 0, team1Seed: 1, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: `${leagues[0].name} Championship (#1 vs Play-In Winner)` },
+    { id: `W2-${l1}`, round: 2, position: 1, team1Seed: 4, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: `${leagues[1].name} Championship (#1 vs Play-In Winner)` },
+    { id: 'FINAL', round: 3, position: 0, team1Seed: null, team2Seed: null, team1Score: null, team2Score: null, winningSeed: null, label: `${ORG_SHORT_NAME} Championship` },
   ];
+}
+
+function getAdvancementMap(leagues: LeagueInfo[]): Record<string, { target: string; slot: 'team1Seed' | 'team2Seed' }> {
+  if (leagues.length < 2) return {};
+  const l0 = leagues[0].shortName;
+  const l1 = leagues[1].shortName;
+  return {
+    [`W1-${l0}`]: { target: `W2-${l0}`, slot: 'team2Seed' },
+    [`W1-${l1}`]: { target: `W2-${l1}`, slot: 'team2Seed' },
+    [`W2-${l0}`]: { target: 'FINAL', slot: 'team1Seed' },
+    [`W2-${l1}`]: { target: 'FINAL', slot: 'team2Seed' },
+  };
 }
 
 export default function BracketManagerPage() {
   const router = useRouter();
+  const { leagues } = useLeagueConfig();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -92,10 +103,11 @@ export default function BracketManagerPage() {
   const [playoffStartWeek, setPlayoffStartWeek] = useState(15);
   const [pullingScores, setPullingScores] = useState(false);
 
-  const [manualSlots, setManualSlots] = useState<ManualSlot[]>([
-    { teamName: '' }, { teamName: '' }, { teamName: '' },
-    { teamName: '' }, { teamName: '' }, { teamName: '' },
-  ]);
+  const qualifiersPerLeague = 3;
+  const totalSlots = leagues.length * qualifiersPerLeague;
+  const [manualSlots, setManualSlots] = useState<ManualSlot[]>(
+    Array.from({ length: totalSlots }, () => ({ teamName: '' }))
+  );
 
   useEffect(() => {
     Promise.all([
@@ -133,14 +145,14 @@ export default function BracketManagerPage() {
     const teams: BracketTeam[] = [];
     let seed = 1;
 
-    for (const league of LEAGUE_OPTIONS) {
+    for (const league of leagues) {
       const leagueId = Object.keys(leagueTeams).find((id) => {
         const first = leagueTeams[id][0];
         return first?.leagueName === league.name;
       });
       if (!leagueId) continue;
-      const top3 = leagueTeams[leagueId].slice(0, 3);
-      for (const q of top3) {
+      const top = leagueTeams[leagueId].slice(0, qualifiersPerLeague);
+      for (const q of top) {
         teams.push({
           rosterId: q.team.rosterId,
           leagueId: q.leagueId,
@@ -157,7 +169,7 @@ export default function BracketManagerPage() {
       }
     }
 
-    const matchups = generateLeagueBracket();
+    const matchups = generateLeagueBracket(leagues);
     const newBracket: BracketData = {
       seasonYear,
       teams,
@@ -176,20 +188,22 @@ export default function BracketManagerPage() {
   function handleManualCreate() {
     for (let i = 0; i < manualSlots.length; i++) {
       if (!manualSlots[i].teamName.trim()) {
-        const labels = ['Sales #1', 'Sales #2', 'Sales #3', 'Acct #1', 'Acct #2', 'Acct #3'];
-        setMessage(`${labels[i]} needs a team name.`);
+        const leagueIdx = Math.floor(i / qualifiersPerLeague);
+        const seedInLeague = (i % qualifiersPerLeague) + 1;
+        const leagueName = leagues[leagueIdx]?.shortName ?? `League ${leagueIdx + 1}`;
+        setMessage(`${leagueName} #${seedInLeague} needs a team name.`);
         return;
       }
     }
 
     const teams: BracketTeam[] = manualSlots.map((slot, i) => {
-      const isAcct = i >= 3;
-      const league = isAcct ? LEAGUE_OPTIONS[1] : LEAGUE_OPTIONS[0];
+      const leagueIdx = Math.floor(i / qualifiersPerLeague);
+      const league = leagues[leagueIdx];
       return {
         rosterId: slot.rosterId ?? (i + 1),
-        leagueId: league.id,
-        leagueName: league.name,
-        leagueColor: league.color,
+        leagueId: league?.sleeperId ?? '',
+        leagueName: league?.name ?? '',
+        leagueColor: league?.color ?? '#6b7280',
         teamName: slot.teamName,
         displayName: slot.teamName,
         avatar: null,
@@ -200,7 +214,7 @@ export default function BracketManagerPage() {
       };
     });
 
-    const matchups = generateLeagueBracket();
+    const matchups = generateLeagueBracket(leagues);
     const newBracket: BracketData = {
       seasonYear,
       teams,
@@ -240,13 +254,7 @@ export default function BracketManagerPage() {
       return { ...m, winningSeed };
     });
 
-    // Advance winner to next round
-    const advancement: Record<string, { target: string; slot: 'team1Seed' | 'team2Seed' }> = {
-      'W1-SALES': { target: 'W2-SALES', slot: 'team2Seed' },
-      'W1-ACCT': { target: 'W2-ACCT', slot: 'team2Seed' },
-      'W2-SALES': { target: 'FINAL', slot: 'team1Seed' },
-      'W2-ACCT': { target: 'FINAL', slot: 'team2Seed' },
-    };
+    const advancement = getAdvancementMap(leagues);
     const adv = advancement[matchupId];
     if (adv) {
       updatedMatchups = updatedMatchups.map((m) =>
@@ -314,7 +322,6 @@ export default function BracketManagerPage() {
       return;
     }
 
-    // Real Sleeper league IDs are long numeric strings; reject fakes like "sales"
     const hasRealIds = teamsInRound.every((t) => t.leagueId.length > 10);
     if (!hasRealIds) {
       setMessage('Cannot pull scores - teams need real Sleeper league IDs. Re-create bracket with auto-seed or update teams.');
@@ -403,7 +410,7 @@ export default function BracketManagerPage() {
         <div>
           <h1 className="text-2xl font-extrabold text-white">Bracket Manager</h1>
           <p className="text-text-secondary text-sm mt-1">
-            3-week playoff: league play-in, league championship, then Sales vs Accounting final.
+            3-week playoff: league play-in, league championship, then cross-league final.
           </p>
         </div>
 
@@ -427,7 +434,7 @@ export default function BracketManagerPage() {
         <div className="glass-card p-6 space-y-4">
           <h2 className="font-bold text-white">Option 1: Auto-Seed from Rankings</h2>
           <p className="text-text-secondary text-sm">
-            Pull the top 3 from each league based on current power rankings. Scores can be auto-pulled from Sleeper.
+            Pull the top {qualifiersPerLeague} from each league based on current power rankings. Scores can be auto-pulled from Sleeper.
           </p>
           <button
             onClick={handleSeedFromRankings}
@@ -442,7 +449,7 @@ export default function BracketManagerPage() {
         <div className="glass-card p-6 space-y-4">
           <h2 className="font-bold text-white">Option 2: Manual Entry</h2>
           <p className="text-text-secondary text-sm">
-            Type in the 6 playoff team names. Use this for past seasons.
+            Type in the {totalSlots} playoff team names. Use this for past seasons.
           </p>
           <button
             onClick={() => setStep('manual')}
@@ -468,7 +475,7 @@ export default function BracketManagerPage() {
         <div>
           <h1 className="text-2xl font-extrabold text-white">Manual Bracket Setup</h1>
           <p className="text-text-secondary text-sm mt-1">
-            Enter the top 3 teams from each league in seed order.
+            Enter the top {qualifiersPerLeague} teams from each league in seed order.
           </p>
         </div>
 
@@ -485,55 +492,39 @@ export default function BracketManagerPage() {
           </div>
         </div>
 
-        {/* Sales league */}
-        <div className="glass-card p-6 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: LEAGUE_OPTIONS[0].color }} />
-            <h2 className="font-bold text-white">Sales League</h2>
-          </div>
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="flex items-center gap-3">
-              <span className="text-sm font-bold text-text-muted w-6">#{i + 1}</span>
-              <input
-                type="text"
-                value={manualSlots[i].teamName}
-                onChange={(e) => {
-                  const updated = [...manualSlots];
-                  updated[i] = { teamName: e.target.value };
-                  setManualSlots(updated);
-                }}
-                placeholder={i === 0 ? '#1 seed (bye week 1)' : `#${i + 1} seed`}
-                className="flex-1 px-3 py-2 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
-              />
-              {i === 0 && <span className="text-xs text-accent-gold">BYE</span>}
+        {/* League entry sections */}
+        {leagues.map((league, leagueIdx) => {
+          const startIdx = leagueIdx * qualifiersPerLeague;
+          return (
+            <div key={league.dbId} className="glass-card p-6 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.color }} />
+                <h2 className="font-bold text-white">{league.name} League</h2>
+              </div>
+              {Array.from({ length: qualifiersPerLeague }, (_, j) => {
+                const i = startIdx + j;
+                const seedNum = j + 1;
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-text-muted w-6">#{seedNum}</span>
+                    <input
+                      type="text"
+                      value={manualSlots[i]?.teamName ?? ''}
+                      onChange={(e) => {
+                        const updated = [...manualSlots];
+                        updated[i] = { teamName: e.target.value };
+                        setManualSlots(updated);
+                      }}
+                      placeholder={seedNum === 1 ? '#1 seed (bye week 1)' : `#${seedNum} seed`}
+                      className="flex-1 px-3 py-2 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                    />
+                    {seedNum === 1 && <span className="text-xs text-accent-gold">BYE</span>}
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
-
-        {/* Accounting league */}
-        <div className="glass-card p-6 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: LEAGUE_OPTIONS[1].color }} />
-            <h2 className="font-bold text-white">Accounting League</h2>
-          </div>
-          {[3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-3">
-              <span className="text-sm font-bold text-text-muted w-6">#{i - 2}</span>
-              <input
-                type="text"
-                value={manualSlots[i].teamName}
-                onChange={(e) => {
-                  const updated = [...manualSlots];
-                  updated[i] = { teamName: e.target.value };
-                  setManualSlots(updated);
-                }}
-                placeholder={i === 3 ? '#1 seed (bye week 1)' : `#${i - 2} seed`}
-                className="flex-1 px-3 py-2 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
-              />
-              {i === 3 && <span className="text-xs text-accent-gold">BYE</span>}
-            </div>
-          ))}
-        </div>
+          );
+        })}
 
         {/* Bracket explanation */}
         <div className="glass-card p-4 bg-white/5">
@@ -541,7 +532,7 @@ export default function BracketManagerPage() {
             <strong className="text-text-secondary">How the bracket works:</strong><br />
             Week 1: #2 vs #3 in each league (#1 seeds on bye)<br />
             Week 2: #1 vs play-in winner in each league (league championship)<br />
-            Week 3: Sales champ vs Accounting champ (the big one)
+            Week 3: {leagues[0]?.name ?? 'League 1'} champ vs {leagues[1]?.name ?? 'League 2'} champ (the big one)
           </p>
         </div>
 
@@ -574,7 +565,7 @@ export default function BracketManagerPage() {
   const roundLabels: Record<number, string> = {
     1: 'Week 1 — Play-In Round',
     2: 'Week 2 — League Championships',
-    3: 'Week 3 — Scranton Branch Championship',
+    3: `Week 3 — ${ORG_SHORT_NAME} Championship`,
   };
 
   const rounds: Record<number, BracketMatchup[]> = {};

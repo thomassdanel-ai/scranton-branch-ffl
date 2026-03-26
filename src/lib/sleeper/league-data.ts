@@ -1,5 +1,5 @@
 import { getLeagueUsers, getLeagueRosters, getMatchups, getLeague, getNFLState, getAvatarUrl } from './api';
-import { LEAGUE_CONFIG } from '@/config/leagues';
+import { DEFAULT_CHAMPIONSHIP } from '@/config/constants';
 import type { SleeperRoster, SleeperUser } from './types';
 
 export type LeagueTeam = {
@@ -39,10 +39,6 @@ export type StandingsTeam = LeagueTeam & {
   inPlayoffPosition: boolean;
 };
 
-export function findLeagueConfig(leagueId: string) {
-  return LEAGUE_CONFIG.leagues.find((l) => l.id === leagueId) ?? null;
-}
-
 function mergeTeam(roster: SleeperRoster, user: SleeperUser | undefined): LeagueTeam {
   return {
     rosterId: roster.roster_id,
@@ -73,9 +69,9 @@ export async function getLeagueTeams(leagueId: string): Promise<LeagueTeam[]> {
   return rosters.map((roster) => mergeTeam(roster, userMap.get(roster.owner_id)));
 }
 
-export async function getLeagueStandings(leagueId: string): Promise<StandingsTeam[]> {
+export async function getLeagueStandings(leagueId: string, qualifiersPerLeague?: number): Promise<StandingsTeam[]> {
   const teams = await getLeagueTeams(leagueId);
-  const qualifiers = LEAGUE_CONFIG.championship.qualifiersPerLeague;
+  const qualifiers = qualifiersPerLeague ?? DEFAULT_CHAMPIONSHIP.qualifiersPerLeague;
 
   const sorted = teams.sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;

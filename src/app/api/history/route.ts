@@ -15,7 +15,7 @@ export async function GET() {
       champion,
       awards,
       archived_at,
-      seasons!inner(year, config)
+      seasons(year, config)
     `)
     .order('archived_at', { ascending: false });
 

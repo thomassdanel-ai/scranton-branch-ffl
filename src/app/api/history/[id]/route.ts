@@ -14,7 +14,7 @@ export async function GET(
     .from('season_archives')
     .select(`
       *,
-      seasons!inner(year, config)
+      seasons(year, config)
     `)
     .eq('id', params.id)
     .single();

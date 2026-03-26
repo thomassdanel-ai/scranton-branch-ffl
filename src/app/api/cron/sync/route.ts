@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LEAGUE_CONFIG } from '@/config/leagues';
 import { getNFLState, getLeague, getLeagueRosters, getMatchups, getTransactions } from '@/lib/sleeper/api';
 import { createServiceClient } from '@/lib/supabase/server';
 import { computePowerRankings } from '@/lib/rankings/compute';
 import { buildWeeklyResults, buildPlayerScores } from '@/lib/weekly-results';
+import { getSeasonLeagues, getActiveSeasonId } from '@/lib/config';
 
 function isGameDay(): boolean {
   const day = new Date().getDay();
@@ -23,26 +23,9 @@ function shouldSync(nflState: { season_type: string }): boolean {
 }
 
 async function findSeasonId(supabase: ReturnType<typeof createServiceClient>, year: string): Promise<string> {
-  // Try new status-based lookup first (active or drafting seasons)
-  const { data: byStatus } = await supabase
-    .from('seasons')
-    .select('id')
-    .in('status', ['active', 'drafting'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (byStatus) return byStatus.id;
-
-  // Fallback: old is_current boolean for legacy season rows
-  const { data: byCurrent } = await supabase
-    .from('seasons')
-    .select('id')
-    .eq('year', year)
-    .eq('is_current', true)
-    .single();
-
-  if (byCurrent) return byCurrent.id;
+  // Try the shared active season lookup
+  const activeId = await getActiveSeasonId();
+  if (activeId) return activeId;
 
   // Last resort: create a season record
   const { data: created, error } = await supabase
@@ -51,7 +34,7 @@ async function findSeasonId(supabase: ReturnType<typeof createServiceClient>, ye
       year,
       is_current: true,
       status: 'active',
-      config: LEAGUE_CONFIG,
+      config: {},
     })
     .select('id')
     .single();
@@ -66,10 +49,8 @@ async function saveCompletedWeeks(
   seasonId: string,
   currentNFLWeek: number
 ) {
-  // Finalized weeks are 1 through (currentNFLWeek - 1)
   if (currentNFLWeek <= 1) return 0;
 
-  // Find the highest week already saved
   const { data: latest } = await supabase
     .from('weekly_results')
     .select('week')
@@ -84,33 +65,32 @@ async function saveCompletedWeeks(
 
   if (lastSaved >= lastFinalized) return 0;
 
+  const leagues = await getSeasonLeagues(seasonId);
   let savedCount = 0;
 
   for (let week = lastSaved + 1; week <= lastFinalized; week++) {
-    for (const league of LEAGUE_CONFIG.leagues) {
+    for (const league of leagues) {
       try {
         const [matchups, rosters, leagueData] = await Promise.all([
-          getMatchups(league.id, week),
-          getLeagueRosters(league.id),
-          getLeague(league.id),
+          getMatchups(league.sleeperId, week),
+          getLeagueRosters(league.sleeperId),
+          getLeague(league.sleeperId),
         ]);
 
         if (!matchups.length) continue;
 
-        const rows = buildWeeklyResults(seasonId, league.id, week, matchups, rosters);
+        const rows = buildWeeklyResults(seasonId, league.sleeperId, week, matchups, rosters);
         if (rows.length > 0) {
-          // INSERT with ON CONFLICT DO NOTHING — never overwrite finalized data
           const { error } = await supabase
             .from('weekly_results')
             .upsert(rows, { onConflict: 'league_id,week,roster_id', ignoreDuplicates: true });
           if (!error) savedCount += rows.length;
         }
 
-        // Also save per-player scores (starters + bench)
         const rosterPositions = leagueData.roster_positions.filter(
           (pos) => pos !== 'BN' && pos !== 'IR'
         );
-        const playerRows = buildPlayerScores(seasonId, league.id, week, matchups, rosterPositions);
+        const playerRows = buildPlayerScores(seasonId, league.sleeperId, week, matchups, rosterPositions);
         if (playerRows.length > 0) {
           await supabase
             .from('player_weekly_scores')
@@ -142,21 +122,21 @@ export async function GET(req: NextRequest) {
     const week = nflState.week;
     const supabase = createServiceClient();
     const seasonId = await findSeasonId(supabase, nflState.season);
+    const leagues = await getSeasonLeagues(seasonId);
     const results: Record<string, unknown> = {};
 
-    for (const league of LEAGUE_CONFIG.leagues) {
+    for (const league of leagues) {
       const [rosters, matchups, transactions] = await Promise.all([
-        getLeagueRosters(league.id),
-        getMatchups(league.id, week),
-        getTransactions(league.id, week),
+        getLeagueRosters(league.sleeperId),
+        getMatchups(league.sleeperId, week),
+        getTransactions(league.sleeperId, week),
       ]);
 
-      // Persist live snapshots + transactions (current week, overwritten each sync)
       const [snapshotResult, txResult] = await Promise.all([
         supabase.from('league_snapshots').upsert(
           {
             season_id: seasonId,
-            league_id: league.id,
+            league_id: league.sleeperId,
             week,
             standings: rosters,
             matchups,
@@ -167,7 +147,7 @@ export async function GET(req: NextRequest) {
         supabase.from('transactions_cache').upsert(
           {
             season_id: seasonId,
-            league_id: league.id,
+            league_id: league.sleeperId,
             week,
             transactions,
             fetched_at: new Date().toISOString(),
@@ -179,7 +159,7 @@ export async function GET(req: NextRequest) {
       if (snapshotResult.error) throw new Error(`Snapshot upsert failed (${league.name}): ${snapshotResult.error.message}`);
       if (txResult.error) throw new Error(`Transactions upsert failed (${league.name}): ${txResult.error.message}`);
 
-      results[league.id] = {
+      results[league.sleeperId] = {
         league: league.name,
         week,
         rosters: rosters.length,
@@ -188,10 +168,8 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    // Auto-save any finalized weeks not yet in weekly_results
     const autoSaved = await saveCompletedWeeks(supabase, seasonId, week);
 
-    // Persist power rankings for this week
     try {
       const rankings = await computePowerRankings();
       if (rankings.length > 0) {

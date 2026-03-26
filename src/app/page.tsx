@@ -1,24 +1,28 @@
-import { LEAGUE_CONFIG } from '@/config/leagues';
+import { getSeasonLeagues } from '@/lib/config';
+import { ORG_NAME } from '@/config/constants';
 
-export default function HomePage() {
+export default async function HomePage() {
+  const leagues = await getSeasonLeagues();
+  const currentYear = new Date().getFullYear().toString();
+
   return (
     <div className="space-y-8">
       {/* Hero */}
       <section className="text-center py-12">
         <p className="text-accent-gold text-sm font-semibold uppercase tracking-widest mb-3">
-          {LEAGUE_CONFIG.currentSeason} Season
+          {currentYear} Season
         </p>
         <h1 className="text-4xl sm:text-5xl font-extrabold text-white mb-4">
-          {LEAGUE_CONFIG.name}
+          {ORG_NAME}
         </h1>
         <p className="text-text-secondary text-lg max-w-xl mx-auto">
           Your cross-league fantasy hub — scores, power rankings, and trash talk, all in one place.
         </p>
         <div className="flex items-center justify-center gap-3 mt-6">
-          {LEAGUE_CONFIG.leagues.map((league) => (
+          {leagues.map((league) => (
             <a
-              key={league.id}
-              href={`/leagues/${league.id}`}
+              key={league.sleeperId || league.dbId}
+              href={`/leagues/${league.sleeperId}`}
               className="px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80"
               style={{
                 backgroundColor: `${league.color}22`,
