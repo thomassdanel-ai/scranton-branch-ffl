@@ -3,7 +3,7 @@ import '@/styles/globals.css';
 import Nav from '@/components/layout/Nav';
 import Footer from '@/components/layout/Footer';
 import { ConfigProvider } from '@/components/providers/ConfigProvider';
-import { getSeasonLeagues } from '@/lib/config';
+import { getSeasonLeagues, getActiveSeasonYear } from '@/lib/config';
 import { ORG_NAME, ORG_SHORT_NAME } from '@/config/constants';
 
 export const metadata: Metadata = {
@@ -23,12 +23,15 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const leagues = await getSeasonLeagues();
+  const [leagues, seasonYear] = await Promise.all([
+    getSeasonLeagues(),
+    getActiveSeasonYear(),
+  ]);
 
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen flex flex-col bg-bg-primary text-text-primary antialiased">
-        <ConfigProvider leagues={leagues}>
+        <ConfigProvider leagues={leagues} seasonYear={seasonYear}>
           <Nav />
           <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-8">
             {children}

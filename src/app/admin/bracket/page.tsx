@@ -91,14 +91,14 @@ function getAdvancementMap(leagues: LeagueInfo[]): Record<string, { target: stri
 
 export default function BracketManagerPage() {
   const router = useRouter();
-  const { leagues } = useLeagueConfig();
+  const { leagues, seasonYear: ctxYear } = useLeagueConfig();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [bracket, setBracket] = useState<BracketData | null>(null);
   const [rankings, setRankings] = useState<RankedTeam[]>([]);
   const [step, setStep] = useState<'setup' | 'manual' | 'manage'>('setup');
-  const [seasonYear, setSeasonYear] = useState(new Date().getFullYear().toString());
+  const [seasonYear, setSeasonYear] = useState(ctxYear || new Date().getFullYear().toString());
 
   const [playoffStartWeek, setPlayoffStartWeek] = useState(15);
   const [pullingScores, setPullingScores] = useState(false);

@@ -4,10 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ORG_NAME } from '@/config/constants';
+import { useLeagueConfig } from '@/components/providers/ConfigProvider';
 
 export default function Footer() {
   const [showToby, setShowToby] = useState(false);
-  const currentYear = new Date().getFullYear().toString();
+  const { seasonYear } = useLeagueConfig();
+  const currentYear = seasonYear || new Date().getFullYear().toString();
 
   return (
     <>

@@ -96,6 +96,32 @@ export async function findLeagueBySleeperIdAsync(sleeperId: string): Promise<Lea
 }
 
 /**
+ * Get the active season's year from the DB.
+ * Falls back to current calendar year if no season found.
+ */
+export async function getActiveSeasonYear(): Promise<string> {
+  const supabase = createServiceClient();
+
+  const { data: byStatus } = await supabase
+    .from('seasons')
+    .select('year')
+    .in('status', ['active', 'drafting', 'playoffs', 'pre_draft', 'setup'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (byStatus?.year) return String(byStatus.year);
+
+  const { data } = await supabase
+    .from('seasons')
+    .select('year')
+    .eq('is_current', true)
+    .single();
+
+  return data?.year ? String(data.year) : new Date().getFullYear().toString();
+}
+
+/**
  * Get championship config for a season.
  * Reads from seasons.settings JSONB, falls back to defaults.
  */

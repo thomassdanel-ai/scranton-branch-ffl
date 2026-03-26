@@ -1,9 +1,11 @@
-import { getSeasonLeagues } from '@/lib/config';
+import { getSeasonLeagues, getActiveSeasonYear } from '@/lib/config';
 import { ORG_NAME } from '@/config/constants';
 
 export default async function HomePage() {
-  const leagues = await getSeasonLeagues();
-  const currentYear = new Date().getFullYear().toString();
+  const [leagues, currentYear] = await Promise.all([
+    getSeasonLeagues(),
+    getActiveSeasonYear(),
+  ]);
 
   return (
     <div className="space-y-8">
