@@ -31,6 +31,22 @@ async function getCachedTransactions(seasonId: string, leagues: LeagueInfo[]): P
     leagueLookup[l.sleeperId] = l;
   }
 
+  // Fetch team rosters for each league (Sleeper keeps old league data accessible)
+  const teamsByLeague: Record<string, Record<number, LeagueTeam>> = {};
+  for (const league of leagues) {
+    if (!league.sleeperId) continue;
+    try {
+      const teams = await getLeagueTeams(league.sleeperId);
+      const byRosterId: Record<number, LeagueTeam> = {};
+      for (const team of teams) {
+        byRosterId[team.rosterId] = team;
+      }
+      teamsByLeague[league.sleeperId] = byRosterId;
+    } catch {
+      teamsByLeague[league.sleeperId] = {};
+    }
+  }
+
   const all: EnrichedTransaction[] = [];
   for (const row of data) {
     const league = leagueLookup[row.league_id];
@@ -45,7 +61,7 @@ async function getCachedTransactions(seasonId: string, leagues: LeagueInfo[]): P
         leagueName: league.name,
         leagueShortName: league.shortName,
         leagueColor: league.color,
-        teams: {},
+        teams: teamsByLeague[league.sleeperId] ?? {},
       });
     }
   }
