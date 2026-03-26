@@ -118,7 +118,17 @@ export async function getActiveSeasonYear(): Promise<string> {
     .eq('is_current', true)
     .single();
 
-  return data?.year ? String(data.year) : new Date().getFullYear().toString();
+  if (data?.year) return String(data.year);
+
+  // No active or current season — fall back to most recent season's year
+  const { data: latest } = await supabase
+    .from('seasons')
+    .select('year')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  return latest?.year ? String(latest.year) : new Date().getFullYear().toString();
 }
 
 /**
