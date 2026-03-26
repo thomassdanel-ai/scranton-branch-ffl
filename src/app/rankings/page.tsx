@@ -1,5 +1,7 @@
 import { computePowerRankings } from '@/lib/rankings/compute';
+import { getSeasonStatus } from '@/lib/config';
 import PowerRankingsTable from '@/components/rankings/PowerRankingsTable';
+import OffSeasonBanner from '@/components/ui/OffSeasonBanner';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -7,10 +9,14 @@ export const metadata: Metadata = {
 };
 
 export default async function PowerRankingsPage() {
-  const rankings = await computePowerRankings();
+  const [rankings, status] = await Promise.all([
+    computePowerRankings(),
+    getSeasonStatus(),
+  ]);
 
   return (
     <div className="space-y-6">
+      {status.isOffSeason && <OffSeasonBanner year={status.year} />}
       <div>
         <h1 className="text-2xl font-extrabold text-white">
           Cross-League Power Rankings

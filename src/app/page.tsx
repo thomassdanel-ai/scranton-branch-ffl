@@ -1,18 +1,20 @@
-import { getSeasonLeagues, getActiveSeasonYear } from '@/lib/config';
+import { getSeasonLeagues, getSeasonStatus } from '@/lib/config';
 import { ORG_NAME } from '@/config/constants';
+import OffSeasonBanner from '@/components/ui/OffSeasonBanner';
 
 export default async function HomePage() {
-  const [leagues, currentYear] = await Promise.all([
+  const [leagues, status] = await Promise.all([
     getSeasonLeagues(),
-    getActiveSeasonYear(),
+    getSeasonStatus(),
   ]);
 
   return (
     <div className="space-y-8">
+      {status.isOffSeason && <OffSeasonBanner year={status.year} />}
       {/* Hero */}
       <section className="text-center py-12">
         <p className="text-accent-gold text-sm font-semibold uppercase tracking-widest mb-3">
-          {currentYear} Season
+          {status.year} Season
         </p>
         <h1 className="text-4xl sm:text-5xl font-extrabold text-white mb-4">
           {ORG_NAME}

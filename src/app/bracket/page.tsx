@@ -1,6 +1,7 @@
 import { loadBracket } from '@/lib/bracket/engine';
-import { getSeasonLeagues, getChampionshipConfig } from '@/lib/config';
+import { getSeasonLeagues, getChampionshipConfig, getSeasonStatus } from '@/lib/config';
 import BracketView from '@/components/bracket/BracketView';
+import OffSeasonBanner from '@/components/ui/OffSeasonBanner';
 import { ORG_SHORT_NAME } from '@/config/constants';
 
 export const metadata = {
@@ -11,16 +12,18 @@ export const metadata = {
 export const revalidate = 300; // 5 min ISR
 
 export default async function BracketPage() {
-  const [bracket, leagues, championship] = await Promise.all([
+  const [bracket, leagues, championship, status] = await Promise.all([
     loadBracket(),
     getSeasonLeagues(),
     getChampionshipConfig(),
+    getSeasonStatus(),
   ]);
   const qualifiers = leagues.length * championship.qualifiersPerLeague;
 
   if (!bracket) {
     return (
       <div className="space-y-6">
+        {status.isOffSeason && <OffSeasonBanner year={status.year} />}
         <div>
           <h1 className="text-3xl font-extrabold text-white">Championship Bracket</h1>
           <p className="text-text-secondary mt-1">
@@ -55,6 +58,7 @@ export default async function BracketPage() {
 
   return (
     <div className="space-y-6">
+      {status.isOffSeason && <OffSeasonBanner year={status.year} />}
       <div>
         <h1 className="text-3xl font-extrabold text-white">Championship Bracket</h1>
         <p className="text-text-secondary mt-1">

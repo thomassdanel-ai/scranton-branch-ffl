@@ -1,7 +1,8 @@
 import { getAllTransactions } from '@/lib/transactions/fetch';
-import { getSeasonLeagues } from '@/lib/config';
+import { getSeasonLeagues, getSeasonStatus } from '@/lib/config';
 import TransactionsFeed from '@/components/transactions/TransactionsFeed';
 import { getPlayerLookup } from '@/lib/players/cache';
+import OffSeasonBanner from '@/components/ui/OffSeasonBanner';
 
 export const metadata = {
   title: 'Transactions | Scranton Branch FFL',
@@ -9,10 +10,11 @@ export const metadata = {
 };
 
 export default async function TransactionsPage() {
-  const [transactions, playerLookup, leagues] = await Promise.all([
+  const [transactions, playerLookup, leagues, status] = await Promise.all([
     getAllTransactions(),
     getPlayerLookup(),
     getSeasonLeagues(),
+    getSeasonStatus(),
   ]);
 
   const leagueProps = leagues.map((l) => ({
@@ -24,6 +26,7 @@ export default async function TransactionsPage() {
 
   return (
     <div className="space-y-6">
+      {status.isOffSeason && <OffSeasonBanner year={status.year} />}
       <div>
         <h1 className="text-3xl font-extrabold text-white">Transactions</h1>
         <p className="text-text-secondary mt-1">

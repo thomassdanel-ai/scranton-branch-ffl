@@ -14,6 +14,12 @@ export type ChampionshipConfig = {
   format: string;
 };
 
+export type SeasonStatus = {
+  seasonId: string | null;
+  year: string;
+  isOffSeason: boolean;
+};
+
 /**
  * Find the active season ID.
  * Checks status-based lookup first, then falls back to is_current.
@@ -41,6 +47,39 @@ export async function getActiveSeasonId(): Promise<string | null> {
 }
 
 /**
+ * Get the most recent season ID regardless of status.
+ * Used as fallback when no active season exists (off-season).
+ */
+async function getLatestSeasonId(): Promise<string | null> {
+  const supabase = createServiceClient();
+
+  const { data } = await supabase
+    .from('seasons')
+    .select('id')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  return data?.id ?? null;
+}
+
+/**
+ * Get the current season status — whether we're in an active season or off-season.
+ */
+export async function getSeasonStatus(): Promise<SeasonStatus> {
+  const activeId = await getActiveSeasonId();
+  if (activeId) {
+    const year = await getActiveSeasonYear();
+    return { seasonId: activeId, year, isOffSeason: false };
+  }
+
+  // No active season — off-season, fall back to latest
+  const latestId = await getLatestSeasonId();
+  const year = await getActiveSeasonYear(); // already falls back to latest
+  return { seasonId: latestId, year, isOffSeason: true };
+}
+
+/**
  * Get leagues for a season from the DB.
  * If no seasonId provided, uses the active season.
  * Returns empty array if no season/leagues found.
@@ -48,7 +87,9 @@ export async function getActiveSeasonId(): Promise<string | null> {
 export async function getSeasonLeagues(seasonId?: string): Promise<LeagueInfo[]> {
   const supabase = createServiceClient();
 
-  const sid = seasonId ?? await getActiveSeasonId();
+  let sid = seasonId ?? await getActiveSeasonId();
+  // Off-season fallback: show last archived season's leagues
+  if (!sid) sid = await getLatestSeasonId();
   if (!sid) return [];
 
   const { data, error } = await supabase
@@ -74,7 +115,9 @@ export async function getSeasonLeagues(seasonId?: string): Promise<LeagueInfo[]>
 export async function findLeagueBySleeperIdAsync(sleeperId: string): Promise<LeagueInfo | null> {
   const supabase = createServiceClient();
 
-  const sid = await getActiveSeasonId();
+  let sid = await getActiveSeasonId();
+  // Off-season fallback: resolve against last archived season
+  if (!sid) sid = await getLatestSeasonId();
   if (!sid) return null;
 
   const { data } = await supabase
