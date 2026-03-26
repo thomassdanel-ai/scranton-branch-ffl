@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { createServiceClient } from '@/lib/supabase/server';
-
-function isAuthed(): boolean {
-  const cookieStore = cookies();
-  return cookieStore.get('admin_auth')?.value === 'true';
-}
+import { isAuthed } from '@/lib/auth';
 
 // POST: Create a mock draft board for a league (copies the real board's structure)
 export async function POST(req: NextRequest) {

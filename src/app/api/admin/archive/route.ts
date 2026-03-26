@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getLeagueStandings } from '@/lib/sleeper/league-data';
 import { computePowerRankings } from '@/lib/rankings/compute';
 import { loadBracket } from '@/lib/bracket/engine';
 import { LEAGUE_CONFIG } from '@/config/leagues';
-
-function isAuthed(): boolean {
-  const cookieStore = cookies();
-  return cookieStore.get('admin_auth')?.value === 'true';
-}
+import { isAuthed } from '@/lib/auth';
 
 /**
  * POST: Archive the current season.

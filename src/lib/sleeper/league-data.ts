@@ -24,6 +24,8 @@ export type MatchupSide = {
   points: number;
   starters: string[];
   startersPoints: number[];
+  players: string[];
+  playersPoints: Record<string, number>;
 };
 
 export type MatchupPair = {
@@ -121,12 +123,16 @@ export async function getWeekMatchups(leagueId: string, week: number): Promise<M
         points: a.points ?? 0,
         starters: a.starters ?? [],
         startersPoints: a.starters_points ?? [],
+        players: a.players ?? [],
+        playersPoints: a.players_points ?? {},
       },
       team2: {
         team: teamB,
         points: b.points ?? 0,
         starters: b.starters ?? [],
         startersPoints: b.starters_points ?? [],
+        players: b.players ?? [],
+        playersPoints: b.players_points ?? {},
       },
     });
   }

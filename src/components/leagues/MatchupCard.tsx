@@ -78,23 +78,51 @@ export default function MatchupCard({ matchup, rosterPositions, playerLookup }: 
       {expanded && (
         <div className="border-t border-white/10 p-4">
           <div className="grid grid-cols-2 gap-4">
-            <StarterList
-              starters={team1.starters}
-              startersPoints={team1.startersPoints}
-              positions={rosterPositions}
-              playerLookup={playerLookup}
-            />
-            <StarterList
-              starters={team2.starters}
-              startersPoints={team2.startersPoints}
-              positions={rosterPositions}
-              playerLookup={playerLookup}
-            />
+            <div>
+              <StarterList
+                starters={team1.starters}
+                startersPoints={team1.startersPoints}
+                positions={rosterPositions}
+                playerLookup={playerLookup}
+              />
+              <BenchList
+                players={team1.players}
+                starters={team1.starters}
+                playersPoints={team1.playersPoints}
+                startersPoints={team1.startersPoints}
+                rosterPositions={rosterPositions}
+                playerLookup={playerLookup}
+              />
+            </div>
+            <div>
+              <StarterList
+                starters={team2.starters}
+                startersPoints={team2.startersPoints}
+                positions={rosterPositions}
+                playerLookup={playerLookup}
+              />
+              <BenchList
+                players={team2.players}
+                starters={team2.starters}
+                playersPoints={team2.playersPoints}
+                startersPoints={team2.startersPoints}
+                rosterPositions={rosterPositions}
+                playerLookup={playerLookup}
+              />
+            </div>
           </div>
         </div>
       )}
     </div>
   );
+}
+
+function getPlayerDisplay(playerId: string, playerLookup?: PlayerLookup): string {
+  if (playerId === '0') return 'Empty';
+  if (!playerLookup) return playerId;
+  const player = playerLookup[playerId];
+  if (!player) return `#${playerId}`;
+  return player.full_name;
 }
 
 function StarterList({ starters, startersPoints, positions, playerLookup }: {
@@ -107,14 +135,6 @@ function StarterList({ starters, startersPoints, positions, playerLookup }: {
     return <p className="text-text-muted text-xs">No lineup data</p>;
   }
 
-  function getPlayerDisplay(playerId: string): string {
-    if (playerId === '0') return 'Empty';
-    if (!playerLookup) return playerId;
-    const player = playerLookup[playerId];
-    if (!player) return `#${playerId}`;
-    return player.full_name;
-  }
-
   return (
     <div className="space-y-1">
       {starters.map((playerId, i) => (
@@ -123,13 +143,89 @@ function StarterList({ starters, startersPoints, positions, playerLookup }: {
             {positions[i] ?? 'BN'}
           </span>
           <span className="text-text-secondary truncate flex-1 mx-2">
-            {getPlayerDisplay(playerId)}
+            {getPlayerDisplay(playerId, playerLookup)}
           </span>
           <span className="stat text-white shrink-0">
             {startersPoints[i]?.toFixed(2) ?? '0.00'}
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function BenchList({ players, starters, playersPoints, startersPoints, rosterPositions, playerLookup }: {
+  players: string[];
+  starters: string[];
+  playersPoints: Record<string, number>;
+  startersPoints: number[];
+  rosterPositions: string[];
+  playerLookup?: PlayerLookup;
+}) {
+  const starterSet = new Set(starters);
+  const benchPlayers = players.filter((id) => !starterSet.has(id) && id !== '0');
+
+  if (!benchPlayers.length) return null;
+
+  // FLEX-eligible positions (RB, WR, TE can fill FLEX; SUPER_FLEX adds QB)
+  const FLEX_ELIGIBLE = new Set(['RB', 'WR', 'TE']);
+  const SUPER_FLEX_ELIGIBLE = new Set(['QB', 'RB', 'WR', 'TE']);
+
+  // Build lowest starter score per SLOT position (QB, RB, WR, TE, FLEX, K, DEF)
+  // A slot can appear multiple times (e.g., two RB slots) — track the min across all of that slot
+  const slotMinScore: Record<string, number> = {};
+  for (let i = 0; i < starters.length; i++) {
+    const slot = rosterPositions[i];
+    if (!slot) continue;
+    const pts = startersPoints[i] ?? 0;
+    if (slotMinScore[slot] === undefined || pts < slotMinScore[slot]) {
+      slotMinScore[slot] = pts;
+    }
+  }
+
+  function couldHaveOutscoredStarter(pos: string | undefined, pts: number): boolean {
+    if (!pos || pts <= 0) return false;
+
+    // Check direct slot match (e.g., bench WR vs weakest started WR)
+    if (slotMinScore[pos] !== undefined && pts > slotMinScore[pos]) return true;
+
+    // Check FLEX slot — RB/WR/TE can fill FLEX
+    if (FLEX_ELIGIBLE.has(pos) && slotMinScore['FLEX'] !== undefined && pts > slotMinScore['FLEX']) return true;
+
+    // Check SUPER_FLEX / REC_FLEX if league uses them
+    if (SUPER_FLEX_ELIGIBLE.has(pos) && slotMinScore['SUPER_FLEX'] !== undefined && pts > slotMinScore['SUPER_FLEX']) return true;
+    if (FLEX_ELIGIBLE.has(pos) && slotMinScore['REC_FLEX'] !== undefined && pts > slotMinScore['REC_FLEX']) return true;
+
+    return false;
+  }
+
+  // Sort bench by points descending
+  const sorted = [...benchPlayers].sort(
+    (a, b) => (playersPoints[b] ?? 0) - (playersPoints[a] ?? 0)
+  );
+
+  return (
+    <div className="mt-2 pt-2 border-t border-white/5">
+      <p className="text-text-muted text-[10px] uppercase tracking-wider mb-1">Bench</p>
+      <div className="space-y-1">
+        {sorted.map((playerId) => {
+          const pts = playersPoints[playerId] ?? 0;
+          const player = playerLookup?.[playerId];
+          const outscoredStarter = couldHaveOutscoredStarter(player?.position, pts);
+
+          return (
+            <div key={playerId} className="flex items-center justify-between text-xs">
+              <span className="text-text-muted w-10 shrink-0">BN</span>
+              <span className={`truncate flex-1 mx-2 ${outscoredStarter ? 'text-accent-green' : 'text-text-muted'}`}>
+                {getPlayerDisplay(playerId, playerLookup)}
+              </span>
+              <span className={`stat shrink-0 ${outscoredStarter ? 'text-accent-green font-semibold' : 'text-text-muted'}`}>
+                {pts.toFixed(2)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

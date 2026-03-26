@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getLeagueRosters, getLeagueUsers } from '@/lib/sleeper/api';
-
-function isAuthed(): boolean {
-  const cookieStore = cookies();
-  return cookieStore.get('admin_auth')?.value === 'true';
-}
+import { isAuthed } from '@/lib/auth';
 
 // POST: Link Sleeper league IDs and map rosters to members
 export async function POST(req: NextRequest) {

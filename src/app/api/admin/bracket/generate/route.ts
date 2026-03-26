@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { generateBracketMatchups } from '@/lib/bracket/engine';
-
-function isAuthed(): boolean {
-  const cookieStore = cookies();
-  return cookieStore.get('admin_auth')?.value === 'true';
-}
+import { isAuthed } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   if (!isAuthed()) {

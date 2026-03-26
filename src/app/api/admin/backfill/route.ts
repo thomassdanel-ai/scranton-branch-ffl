@@ -1,81 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { LEAGUE_CONFIG } from '@/config/leagues';
-import { getLeagueRosters, getMatchups } from '@/lib/sleeper/api';
+import { getLeague, getLeagueRosters, getMatchups } from '@/lib/sleeper/api';
 import { createServiceClient } from '@/lib/supabase/server';
-import type { SleeperMatchup, SleeperRoster } from '@/lib/sleeper/types';
-
-function isAuthed(): boolean {
-  const cookieStore = cookies();
-  return cookieStore.get('admin_auth')?.value === 'true';
-}
-
-function buildWeeklyResults(
-  seasonId: string,
-  leagueId: string,
-  week: number,
-  matchups: SleeperMatchup[],
-  rosters: SleeperRoster[]
-) {
-  const grouped: Record<number, SleeperMatchup[]> = {};
-  for (const m of matchups) {
-    if (!m.matchup_id) continue;
-    if (!grouped[m.matchup_id]) grouped[m.matchup_id] = [];
-    grouped[m.matchup_id].push(m);
-  }
-
-  const rosterMap: Record<number, SleeperRoster> = {};
-  for (const r of rosters) {
-    rosterMap[r.roster_id] = r;
-  }
-
-  const rows: Array<Record<string, unknown>> = [];
-
-  for (const matchupId of Object.keys(grouped)) {
-    const sides = grouped[Number(matchupId)];
-    for (const side of sides) {
-      const opponent = sides.find((s) => s.roster_id !== side.roster_id);
-      const roster = rosterMap[side.roster_id];
-
-      let result: string | null = null;
-      if (opponent) {
-        if (side.points > opponent.points) result = 'win';
-        else if (side.points < opponent.points) result = 'loss';
-        else result = 'tie';
-      }
-
-      const pf = roster
-        ? roster.settings.fpts + (roster.settings.fpts_decimal ?? 0) / 100
-        : 0;
-      const pa = roster
-        ? roster.settings.fpts_against + (roster.settings.fpts_against_decimal ?? 0) / 100
-        : 0;
-
-      rows.push({
-        season_id: seasonId,
-        league_id: leagueId,
-        week,
-        roster_id: side.roster_id,
-        points: side.points ?? 0,
-        opponent_roster_id: opponent?.roster_id ?? null,
-        opponent_points: opponent?.points ?? null,
-        result,
-        matchup_id: Number(matchupId),
-        season_wins: roster?.settings.wins ?? 0,
-        season_losses: roster?.settings.losses ?? 0,
-        season_ties: roster?.settings.ties ?? 0,
-        season_points_for: pf,
-        season_points_against: pa,
-        streak: roster?.metadata?.streak ?? null,
-        is_playoff: false,
-        is_bracket: false,
-        fetched_at: new Date().toISOString(),
-      });
-    }
-  }
-
-  return rows;
-}
+import { isAuthed } from '@/lib/auth';
+import { buildWeeklyResults, buildPlayerScores } from '@/lib/weekly-results';
 
 // POST: Backfill weekly results for all leagues, all weeks played
 export async function POST(req: NextRequest) {
@@ -131,9 +59,17 @@ export async function POST(req: NextRequest) {
 
   const summary: Record<string, { weeks: number; rows: number }> = {};
 
+  let totalPlayerRows = 0;
+
   for (const league of LEAGUE_CONFIG.leagues) {
     let totalRows = 0;
-    const rosters = await getLeagueRosters(league.id);
+    const [rosters, leagueData] = await Promise.all([
+      getLeagueRosters(league.id),
+      getLeague(league.id),
+    ]);
+    const rosterPositions = leagueData.roster_positions.filter(
+      (pos) => pos !== 'BN' && pos !== 'IR'
+    );
 
     for (let week = 1; week <= weeksToFetch; week++) {
       try {
@@ -150,6 +86,15 @@ export async function POST(req: NextRequest) {
           } else {
             totalRows += weeklyRows.length;
           }
+        }
+
+        // Also save per-player scores (starters + bench)
+        const playerRows = buildPlayerScores(sId, league.id, week, matchups, rosterPositions);
+        if (playerRows.length > 0) {
+          const { error } = await supabase
+            .from('player_weekly_scores')
+            .upsert(playerRows, { onConflict: 'league_id,week,roster_id,player_id' });
+          if (!error) totalPlayerRows += playerRows.length;
         }
       } catch {
         // Skip weeks with no data (e.g., future weeks)
@@ -257,5 +202,6 @@ export async function POST(req: NextRequest) {
     weeksBackfilled: weeksToFetch,
     leagues: summary,
     bracketResults: bracketRows,
+    playerScores: totalPlayerRows,
   });
 }

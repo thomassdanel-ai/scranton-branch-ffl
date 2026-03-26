@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { createServiceClient } from '@/lib/supabase/server';
-
-function isAuthed(): boolean {
-  const cookieStore = cookies();
-  return cookieStore.get('admin_auth')?.value === 'true';
-}
+import { isAuthed } from '@/lib/auth';
 
 // POST: Update member onboard statuses for the current setup season
 export async function POST(req: NextRequest) {

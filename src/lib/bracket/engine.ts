@@ -148,11 +148,20 @@ export function getRoundLabels(teamCount: number): string[] {
 export async function loadBracket(): Promise<BracketData | null> {
   const supabase = createServiceClient();
 
-  const { data: season } = await supabase
+  // Status-based lookup first, then is_current fallback
+  const { data: byStatus } = await supabase
+    .from('seasons')
+    .select('id, year')
+    .in('status', ['active', 'drafting', 'playoffs', 'completed'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  const season = byStatus || (await supabase
     .from('seasons')
     .select('id, year')
     .eq('is_current', true)
-    .single();
+    .single()).data;
 
   if (!season) return null;
 
@@ -172,11 +181,20 @@ export async function loadBracket(): Promise<BracketData | null> {
 export async function saveBracket(data: BracketData): Promise<void> {
   const supabase = createServiceClient();
 
-  const { data: season } = await supabase
+  // Status-based lookup first, then is_current fallback
+  const { data: byStatus } = await supabase
+    .from('seasons')
+    .select('id')
+    .in('status', ['active', 'drafting', 'playoffs', 'completed'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  const season = byStatus || (await supabase
     .from('seasons')
     .select('id')
     .eq('is_current', true)
-    .single();
+    .single()).data;
 
   if (!season) throw new Error('No current season found');
 

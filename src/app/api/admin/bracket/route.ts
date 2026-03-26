@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { loadBracket, saveBracket } from '@/lib/bracket/engine';
 import type { BracketData } from '@/lib/bracket/engine';
-
-function isAuthed(): boolean {
-  const cookieStore = cookies();
-  return cookieStore.get('admin_auth')?.value === 'true';
-}
+import { isAuthed } from '@/lib/auth';
 
 export async function GET() {
   if (!isAuthed()) {

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LEAGUE_CONFIG } from '@/config/leagues';
-import { getNFLState, getLeagueRosters, getMatchups, getTransactions } from '@/lib/sleeper/api';
+import { getNFLState, getLeague, getLeagueRosters, getMatchups, getTransactions } from '@/lib/sleeper/api';
 import { createServiceClient } from '@/lib/supabase/server';
 import { computePowerRankings } from '@/lib/rankings/compute';
-import type { SleeperMatchup, SleeperRoster } from '@/lib/sleeper/types';
+import { buildWeeklyResults, buildPlayerScores } from '@/lib/weekly-results';
 
 function isGameDay(): boolean {
   const day = new Date().getDay();
@@ -60,73 +60,6 @@ async function findSeasonId(supabase: ReturnType<typeof createServiceClient>, ye
   return created.id;
 }
 
-function buildWeeklyResults(
-  seasonId: string,
-  leagueId: string,
-  week: number,
-  matchups: SleeperMatchup[],
-  rosters: SleeperRoster[]
-) {
-  const grouped: Record<number, SleeperMatchup[]> = {};
-  for (const m of matchups) {
-    if (!m.matchup_id) continue;
-    if (!grouped[m.matchup_id]) grouped[m.matchup_id] = [];
-    grouped[m.matchup_id].push(m);
-  }
-
-  const rosterMap: Record<number, SleeperRoster> = {};
-  for (const r of rosters) {
-    rosterMap[r.roster_id] = r;
-  }
-
-  const rows: Array<Record<string, unknown>> = [];
-
-  for (const matchupId of Object.keys(grouped)) {
-    const sides = grouped[Number(matchupId)];
-    for (const side of sides) {
-      const opponent = sides.find((s) => s.roster_id !== side.roster_id);
-      const roster = rosterMap[side.roster_id];
-
-      let result: string | null = null;
-      if (opponent) {
-        if (side.points > opponent.points) result = 'win';
-        else if (side.points < opponent.points) result = 'loss';
-        else result = 'tie';
-      }
-
-      const pf = roster
-        ? roster.settings.fpts + (roster.settings.fpts_decimal ?? 0) / 100
-        : 0;
-      const pa = roster
-        ? roster.settings.fpts_against + (roster.settings.fpts_against_decimal ?? 0) / 100
-        : 0;
-
-      rows.push({
-        season_id: seasonId,
-        league_id: leagueId,
-        week,
-        roster_id: side.roster_id,
-        points: side.points ?? 0,
-        opponent_roster_id: opponent?.roster_id ?? null,
-        opponent_points: opponent?.points ?? null,
-        result,
-        matchup_id: Number(matchupId),
-        season_wins: roster?.settings.wins ?? 0,
-        season_losses: roster?.settings.losses ?? 0,
-        season_ties: roster?.settings.ties ?? 0,
-        season_points_for: pf,
-        season_points_against: pa,
-        streak: roster?.metadata?.streak ?? null,
-        is_playoff: false,
-        is_bracket: false,
-        fetched_at: new Date().toISOString(),
-      });
-    }
-  }
-
-  return rows;
-}
-
 // Auto-save finalized weeks that haven't been saved yet
 async function saveCompletedWeeks(
   supabase: ReturnType<typeof createServiceClient>,
@@ -156,9 +89,10 @@ async function saveCompletedWeeks(
   for (let week = lastSaved + 1; week <= lastFinalized; week++) {
     for (const league of LEAGUE_CONFIG.leagues) {
       try {
-        const [matchups, rosters] = await Promise.all([
+        const [matchups, rosters, leagueData] = await Promise.all([
           getMatchups(league.id, week),
           getLeagueRosters(league.id),
+          getLeague(league.id),
         ]);
 
         if (!matchups.length) continue;
@@ -170,6 +104,17 @@ async function saveCompletedWeeks(
             .from('weekly_results')
             .upsert(rows, { onConflict: 'league_id,week,roster_id', ignoreDuplicates: true });
           if (!error) savedCount += rows.length;
+        }
+
+        // Also save per-player scores (starters + bench)
+        const rosterPositions = leagueData.roster_positions.filter(
+          (pos) => pos !== 'BN' && pos !== 'IR'
+        );
+        const playerRows = buildPlayerScores(seasonId, league.id, week, matchups, rosterPositions);
+        if (playerRows.length > 0) {
+          await supabase
+            .from('player_weekly_scores')
+            .upsert(playerRows, { onConflict: 'league_id,week,roster_id,player_id', ignoreDuplicates: true });
         }
       } catch {
         // Skip weeks with no data
