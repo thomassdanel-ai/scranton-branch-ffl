@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLeague, getLeagueRosters, getMatchups } from '@/lib/sleeper/api';
+import { getLeague, getLeagueRosters, getMatchups, getTransactions } from '@/lib/sleeper/api';
 import { createServiceClient } from '@/lib/supabase/server';
 import { isAuthed } from '@/lib/auth';
 import { buildWeeklyResults, buildPlayerScores } from '@/lib/weekly-results';
 import { getSeasonLeagues, getActiveSeasonId } from '@/lib/config';
+import { computePowerRankings } from '@/lib/rankings/compute';
 
 // POST: Backfill weekly results for all leagues, all weeks played
 export async function POST(req: NextRequest) {
@@ -20,9 +21,20 @@ export async function POST(req: NextRequest) {
   if (!sId) {
     const activeId = await getActiveSeasonId();
     if (!activeId) {
-      return NextResponse.json({ error: 'No current season found' }, { status: 400 });
+      // Fall back to most recent season (for off-season backfill)
+      const { data: latest } = await supabase
+        .from('seasons')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (!latest?.id) {
+        return NextResponse.json({ error: 'No season found' }, { status: 400 });
+      }
+      sId = latest.id;
+    } else {
+      sId = activeId;
     }
-    sId = activeId;
   }
 
   const leagues = await getSeasonLeagues(sId);
@@ -179,6 +191,55 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Backfill transactions cache
+  let transactionRows = 0;
+  for (const league of leagues) {
+    for (let week = 1; week <= weeksToFetch!; week++) {
+      try {
+        const txns = await getTransactions(league.sleeperId, week);
+        if (txns.length > 0) {
+          const { error } = await supabase
+            .from('transactions_cache')
+            .upsert(
+              {
+                season_id: sId,
+                league_id: league.sleeperId,
+                week,
+                transactions: txns,
+                fetched_at: new Date().toISOString(),
+              },
+              { onConflict: 'league_id,week' }
+            );
+          if (!error) transactionRows += txns.length;
+        }
+      } catch {
+        // Skip weeks with no data
+      }
+    }
+  }
+
+  // Backfill power rankings (final week snapshot)
+  let rankingsBackfilled = false;
+  try {
+    const rankings = await computePowerRankings();
+    if (rankings.length > 0) {
+      const { error } = await supabase
+        .from('power_rankings')
+        .upsert(
+          {
+            season_id: sId,
+            week: weeksToFetch,
+            rankings,
+            computed_at: new Date().toISOString(),
+          },
+          { onConflict: 'season_id,week' }
+        );
+      rankingsBackfilled = !error;
+    }
+  } catch (err) {
+    console.error('Power rankings backfill failed:', err);
+  }
+
   return NextResponse.json({
     ok: true,
     seasonId: sId,
@@ -186,5 +247,7 @@ export async function POST(req: NextRequest) {
     leagues: summary,
     bracketResults: bracketRows,
     playerScores: totalPlayerRows,
+    transactionsBackfilled: transactionRows,
+    rankingsBackfilled,
   });
 }
