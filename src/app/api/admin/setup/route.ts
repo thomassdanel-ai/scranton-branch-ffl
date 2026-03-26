@@ -136,6 +136,12 @@ export async function POST(req: NextRequest) {
 
   const seasonNumber = (latest?.season_number || 0) + 1;
 
+  // Unset is_current on all previous seasons (keep old column in sync)
+  await supabase
+    .from('seasons')
+    .update({ is_current: false })
+    .eq('is_current', true);
+
   // Create season
   const { data: season, error: seasonErr } = await supabase
     .from('seasons')
@@ -144,6 +150,7 @@ export async function POST(req: NextRequest) {
       season_number: seasonNumber,
       year,
       status: 'setup',
+      is_current: true,
       num_leagues: numLeagues,
       roster_size_per_league: rosterSize,
     })

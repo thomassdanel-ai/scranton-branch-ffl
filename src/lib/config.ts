@@ -11,15 +11,26 @@ export type DynamicLeagueConfig = typeof LEAGUE_CONFIG;
 export async function getActiveConfig(): Promise<DynamicLeagueConfig> {
   try {
     const supabase = createServiceClient();
+
+    // Try status-based lookup first
+    const { data: byStatus } = await supabase
+      .from('seasons')
+      .select('config')
+      .in('status', ['active', 'drafting'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (byStatus?.config) return byStatus.config as DynamicLeagueConfig;
+
+    // Fallback: old is_current boolean
     const { data } = await supabase
       .from('seasons')
       .select('config')
       .eq('is_current', true)
       .single();
 
-    if (data?.config) {
-      return data.config as DynamicLeagueConfig;
-    }
+    if (data?.config) return data.config as DynamicLeagueConfig;
   } catch {
     // Supabase unavailable or no current season — use static config
   }

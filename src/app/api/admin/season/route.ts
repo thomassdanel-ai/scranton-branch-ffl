@@ -14,11 +14,21 @@ export async function GET() {
   }
 
   const supabase = createServiceClient();
-  const { data } = await supabase
+
+  // Try status-based lookup first
+  const { data: byStatus } = await supabase
+    .from('seasons')
+    .select('*')
+    .in('status', ['active', 'drafting', 'pre_draft', 'setup'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  const data = byStatus || (await supabase
     .from('seasons')
     .select('*')
     .eq('is_current', true)
-    .single();
+    .single()).data;
 
   return NextResponse.json({
     season: data,

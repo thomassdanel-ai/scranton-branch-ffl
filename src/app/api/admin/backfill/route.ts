@@ -91,16 +91,30 @@ export async function POST(req: NextRequest) {
   // Find the season ID if not provided
   let sId: string = seasonId || '';
   if (!sId) {
-    const { data: season } = await supabase
+    // Try status-based lookup first (any in-progress season)
+    const { data: byStatus } = await supabase
       .from('seasons')
       .select('id')
-      .eq('is_current', true)
+      .in('status', ['active', 'drafting', 'pre_draft', 'setup'])
+      .order('created_at', { ascending: false })
       .limit(1)
       .single();
-    if (!season) {
-      return NextResponse.json({ error: 'No current season found' }, { status: 400 });
+
+    if (byStatus) {
+      sId = byStatus.id;
+    } else {
+      // Fallback: old is_current boolean
+      const { data: byCurrent } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('is_current', true)
+        .limit(1)
+        .single();
+      if (!byCurrent) {
+        return NextResponse.json({ error: 'No current season found' }, { status: 400 });
+      }
+      sId = byCurrent.id;
     }
-    sId = season.id;
   }
 
   // Determine max week from rosters if not provided
