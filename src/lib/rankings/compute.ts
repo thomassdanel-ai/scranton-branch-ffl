@@ -1,6 +1,7 @@
 import { getLeagueTeams } from '@/lib/sleeper/league-data';
 import { getMatchups, getNFLState } from '@/lib/sleeper/api';
-import { getSeasonLeagues } from '@/lib/config';
+import { getSeasonLeagues, getSeasonStatus } from '@/lib/config';
+import { createServiceClient } from '@/lib/supabase/server';
 import type { LeagueInfo } from '@/lib/config';
 import type { LeagueTeam } from '@/lib/sleeper/league-data';
 
@@ -19,6 +20,24 @@ export type RankedTeam = {
 };
 
 /**
+ * Load cached power rankings from the DB for the most recent week.
+ * Used during off-season when live Sleeper data may not be meaningful.
+ */
+async function getCachedRankings(seasonId: string): Promise<RankedTeam[]> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from('power_rankings')
+    .select('rankings')
+    .eq('season_id', seasonId)
+    .order('week', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!data?.rankings) return [];
+  return data.rankings as RankedTeam[];
+}
+
+/**
  * Cross-league Power Rankings
  *
  * Power Score = (Win% × 40) + (PF Percentile × 35) + (Luck × 15) + (Streak × 10)
@@ -29,6 +48,13 @@ export type RankedTeam = {
  * - Streak: current streak normalized (-1 to 1 scaled to 0–10)
  */
 export async function computePowerRankings(): Promise<RankedTeam[]> {
+  // During off-season, return cached rankings from DB
+  const status = await getSeasonStatus();
+  if (status.isOffSeason && status.seasonId) {
+    const cached = await getCachedRankings(status.seasonId);
+    if (cached.length > 0) return cached;
+  }
+
   const leagues = await getSeasonLeagues();
 
   // Build a lookup from sleeperId to league info

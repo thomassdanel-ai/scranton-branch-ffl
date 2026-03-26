@@ -1,6 +1,7 @@
 import { getTransactions, getNFLState } from '@/lib/sleeper/api';
 import { getLeagueTeams, getLastPlayedWeek } from '@/lib/sleeper/league-data';
-import { getSeasonLeagues, type LeagueInfo } from '@/lib/config';
+import { getSeasonLeagues, getSeasonStatus, type LeagueInfo } from '@/lib/config';
+import { createServiceClient } from '@/lib/supabase/server';
 import type { SleeperTransaction } from '@/lib/sleeper/types';
 import type { LeagueTeam } from '@/lib/sleeper/league-data';
 
@@ -11,6 +12,47 @@ export type EnrichedTransaction = SleeperTransaction & {
   leagueColor: string;
   teams: Record<number, LeagueTeam>;
 };
+
+/**
+ * Load cached transactions from the DB for an archived season.
+ */
+async function getCachedTransactions(seasonId: string, leagues: LeagueInfo[]): Promise<EnrichedTransaction[]> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from('transactions_cache')
+    .select('league_id, transactions')
+    .eq('season_id', seasonId)
+    .order('week', { ascending: false });
+
+  if (!data || data.length === 0) return [];
+
+  const leagueLookup: Record<string, LeagueInfo> = {};
+  for (const l of leagues) {
+    leagueLookup[l.sleeperId] = l;
+  }
+
+  const all: EnrichedTransaction[] = [];
+  for (const row of data) {
+    const league = leagueLookup[row.league_id];
+    if (!league) continue;
+    const txns = row.transactions as SleeperTransaction[];
+    if (!Array.isArray(txns)) continue;
+    for (const txn of txns) {
+      if (txn.status !== 'complete') continue;
+      all.push({
+        ...txn,
+        leagueId: league.sleeperId,
+        leagueName: league.name,
+        leagueShortName: league.shortName,
+        leagueColor: league.color,
+        teams: {},
+      });
+    }
+  }
+
+  all.sort((a, b) => b.created - a.created);
+  return all;
+}
 
 async function getMaxWeek(leagueId: string): Promise<number> {
   const nflState = await getNFLState();
@@ -62,6 +104,13 @@ async function fetchLeagueTransactions(
 
 export async function getAllTransactions(): Promise<EnrichedTransaction[]> {
   const leagues = await getSeasonLeagues();
+
+  // During off-season, return cached transactions from DB
+  const status = await getSeasonStatus();
+  if (status.isOffSeason && status.seasonId) {
+    const cached = await getCachedTransactions(status.seasonId, leagues);
+    if (cached.length > 0) return cached;
+  }
 
   // Fetch max week and teams for each league in parallel
   const leagueData = await Promise.all(
