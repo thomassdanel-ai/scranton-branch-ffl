@@ -8,6 +8,8 @@ export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(true);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState('');
 
   useEffect(() => {
     // Check if already authed by trying to hit a protected endpoint
@@ -100,6 +102,46 @@ export default function AdminPage() {
           <h2 className="font-bold text-white mb-1">Draft Board</h2>
           <p className="text-text-muted text-sm">Run live snake drafts, mock drafts</p>
         </Link>
+      </div>
+
+      {/* Backfill Data */}
+      <div className="glass-card p-6 space-y-3">
+        <h2 className="font-bold text-white">Backfill Weekly Results</h2>
+        <p className="text-text-muted text-sm">Pull all historical weekly scores from Sleeper and bracket results into the database. Safe to run multiple times.</p>
+        <button
+          onClick={async () => {
+            setBackfilling(true);
+            setBackfillResult('');
+            try {
+              const res = await fetch('/api/admin/backfill', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+              });
+              const data = await res.json();
+              if (res.ok) {
+                const leagueSummary = Object.entries(data.leagues || {})
+                  .map(([name, info]) => `${name}: ${(info as { rows: number }).rows} rows`)
+                  .join(', ');
+                setBackfillResult(`Done! ${data.weeksBackfilled} weeks. ${leagueSummary}. Bracket: ${data.bracketResults} rows.`);
+              } else {
+                setBackfillResult(data.error || 'Backfill failed');
+              }
+            } catch {
+              setBackfillResult('Network error');
+            }
+            setBackfilling(false);
+          }}
+          disabled={backfilling}
+          className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+        >
+          {backfilling ? 'Backfilling...' : 'Run Backfill'}
+        </button>
+        {backfillResult && (
+          <p className={`text-sm ${backfillResult.startsWith('Done') ? 'text-green-300' : 'text-red-300'}`}>
+            {backfillResult}
+          </p>
+        )}
       </div>
     </div>
   );
