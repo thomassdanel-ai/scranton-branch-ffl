@@ -4,6 +4,8 @@ import TransactionsFeed from '@/components/transactions/TransactionsFeed';
 import { getPlayerLookup } from '@/lib/players/cache';
 import OffSeasonBanner from '@/components/ui/OffSeasonBanner';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Transactions | Scranton Branch FFL',
   description: 'All trades, waivers, and free agent pickups across leagues.',

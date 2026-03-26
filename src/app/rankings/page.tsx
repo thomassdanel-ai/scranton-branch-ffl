@@ -4,6 +4,8 @@ import PowerRankingsTable from '@/components/rankings/PowerRankingsTable';
 import OffSeasonBanner from '@/components/ui/OffSeasonBanner';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Power Rankings',
 };

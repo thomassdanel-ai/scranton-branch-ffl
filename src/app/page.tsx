@@ -2,6 +2,8 @@ import { getSeasonLeagues, getSeasonStatus } from '@/lib/config';
 import { ORG_NAME } from '@/config/constants';
 import OffSeasonBanner from '@/components/ui/OffSeasonBanner';
 
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
   const [leagues, status] = await Promise.all([
     getSeasonLeagues(),
