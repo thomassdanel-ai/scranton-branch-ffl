@@ -5,8 +5,12 @@ import OffSeasonBanner from '@/components/ui/OffSeasonBanner';
 import { ORG_SHORT_NAME } from '@/config/constants';
 
 export const metadata = {
-  title: `Championship Bracket | ${ORG_SHORT_NAME}`,
-  description: 'Cross-league championship bracket.',
+  title: 'Championship Bracket',
+  description: 'Cross-league championship playoff bracket — the best from each league compete for the title.',
+  openGraph: {
+    title: `Championship Bracket | ${ORG_SHORT_NAME}`,
+    description: 'Cross-league championship playoff bracket — the best from each league compete for the title.',
+  },
 };
 
 export const revalidate = 300; // 5 min ISR

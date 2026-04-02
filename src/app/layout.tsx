@@ -6,15 +6,34 @@ import { ConfigProvider } from '@/components/providers/ConfigProvider';
 import { getSeasonLeagues, getActiveSeasonYear } from '@/lib/config';
 import { ORG_NAME, ORG_SHORT_NAME } from '@/config/constants';
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://scranton-branch-ffl.vercel.app';
+
 export const metadata: Metadata = {
   title: {
     default: ORG_NAME,
     template: `%s | ${ORG_SHORT_NAME}`,
   },
   description: `The official hub for the ${ORG_NAME} — scores, standings, power rankings, and more.`,
+  metadataBase: new URL(siteUrl),
   openGraph: {
     type: 'website',
     siteName: ORG_SHORT_NAME,
+    title: ORG_NAME,
+    description: `Cross-league fantasy football hub — power rankings, live scores, championship bracket, and trash talk.`,
+    url: siteUrl,
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: ORG_NAME,
+    description: `Cross-league fantasy football hub — power rankings, live scores, championship bracket, and trash talk.`,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  icons: {
+    icon: '/favicon.ico',
   },
 };
 

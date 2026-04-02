@@ -7,8 +7,12 @@ import OffSeasonBanner from '@/components/ui/OffSeasonBanner';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Transactions | Scranton Branch FFL',
+  title: 'Transactions',
   description: 'All trades, waivers, and free agent pickups across leagues.',
+  openGraph: {
+    title: 'Transactions | Scranton Branch FFL',
+    description: 'Every trade, waiver claim, and free agent pickup across all leagues.',
+  },
 };
 
 export default async function TransactionsPage() {

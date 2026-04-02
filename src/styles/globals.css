@@ -49,6 +49,50 @@ body {
   border-radius: 12px;
 }
 
+/* Page entrance animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+main > * {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+/* Card hover lift */
+.glass-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+a .glass-card:hover,
+button.glass-card:hover,
+a.glass-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Score flash animation — applied when live scores update */
+@keyframes scoreFlash {
+  0%   { background-color: rgba(16, 185, 129, 0.15); }
+  100% { background-color: transparent; }
+}
+
+.score-updated {
+  animation: scoreFlash 1.5s ease-out;
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

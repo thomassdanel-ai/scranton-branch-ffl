@@ -1,17 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getMatchups } from '@/lib/sleeper/api';
 import { requireAuth, AuthError } from '@/lib/auth';
+
+const ScoresSchema = z.object({
+  leagueId: z.string().regex(/^\d+$/, 'Must be a numeric Sleeper ID'),
+  week: z.number().int().min(1).max(18),
+});
 
 export async function POST(req: NextRequest) {
   try {
     await requireAuth();
 
     const body = await req.json();
-    const { leagueId, week } = body as { leagueId: string; week: number };
-
-    if (!leagueId || !week || !/^\d+$/.test(leagueId) || typeof week !== 'number' || week < 1 || week > 18) {
-      return NextResponse.json({ error: 'Invalid leagueId or week' }, { status: 400 });
+    const result = ScoresSchema.safeParse(body);
+    if (!result.success) {
+      return NextResponse.json(
+        { error: 'Invalid leagueId or week', details: result.error.issues },
+        { status: 400 }
+      );
     }
+
+    const { leagueId, week } = result.data;
 
     const matchups = await getMatchups(leagueId, week);
 

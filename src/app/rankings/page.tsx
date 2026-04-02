@@ -8,6 +8,11 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Power Rankings',
+  description: 'Cross-league power rankings — all teams ranked by composite score using win%, points, luck, and momentum.',
+  openGraph: {
+    title: 'Power Rankings | Scranton Branch FFL',
+    description: 'Cross-league power rankings — all teams ranked by composite score.',
+  },
 };
 
 export default async function PowerRankingsPage() {

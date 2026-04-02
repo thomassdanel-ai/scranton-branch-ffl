@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadBracket, saveBracket } from '@/lib/bracket/engine';
-import type { BracketData } from '@/lib/bracket/engine';
+import { BracketDataSchema } from '@/lib/bracket/schema';
 import { requireAuth, AuthError } from '@/lib/auth';
 
 export async function GET() {
@@ -22,13 +22,19 @@ export async function PUT(req: NextRequest) {
     await requireAuth();
 
     const body = await req.json();
-    const bracket = body.bracket as BracketData;
 
-    if (!bracket) {
-      return NextResponse.json({ error: 'Missing bracket data' }, { status: 400 });
+    const result = BracketDataSchema.safeParse(body.bracket);
+    if (!result.success) {
+      const errors = result.error.issues.map(
+        (i) => `${i.path.join('.')}: ${i.message}`
+      );
+      return NextResponse.json(
+        { error: 'Invalid bracket data', details: errors },
+        { status: 400 }
+      );
     }
 
-    await saveBracket(bracket);
+    await saveBracket(result.data);
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof AuthError) {

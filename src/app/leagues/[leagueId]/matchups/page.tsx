@@ -5,6 +5,7 @@ import { getNFLState } from '@/lib/sleeper/api';
 import { getPlayerLookup } from '@/lib/players/cache';
 import WeekSelector from '@/components/leagues/WeekSelector';
 import MatchupCard from '@/components/leagues/MatchupCard';
+import LiveScoreIndicator from '@/components/leagues/LiveScoreIndicator';
 
 interface Props {
   params: { leagueId: string };
@@ -20,6 +21,10 @@ export default async function MatchupsPage({ params, searchParams }: Props) {
     ? nflState.week
     : await getLastPlayedWeek(params.leagueId);
   const week = Number(searchParams.week) || maxWeek;
+
+  // Games are "live" if viewing the current NFL week during the regular season
+  const isLive = week === nflState.week && nflState.season_type === 'regular';
+
   const [matchups, rosterPositions, playerLookup] = await Promise.all([
     getWeekMatchups(params.leagueId, week),
     getLeagueRosterPositions(params.leagueId),
@@ -30,6 +35,7 @@ export default async function MatchupsPage({ params, searchParams }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-white">Week {week}</h2>
+        <LiveScoreIndicator leagueId={params.leagueId} week={week} isLive={isLive} />
       </div>
 
       <WeekSelector
