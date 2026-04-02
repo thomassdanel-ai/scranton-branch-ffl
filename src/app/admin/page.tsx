@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { SEASON_STATUS_TRANSITIONS, type SeasonStatusValue } from '@/config/constants';
 import CohortDetailPanel from '@/components/admin/CohortDetailPanel';
+import ConfirmModal from '@/components/admin/ConfirmModal';
 
 type AuthMode = 'checking' | 'setup' | 'login' | 'authed';
 
@@ -85,8 +87,10 @@ export default function AdminPage() {
   const [leagueHealth, setLeagueHealth] = useState<LeagueHealth[]>([]);
   const [expandedCohort, setExpandedCohort] = useState<string | null>(null);
   const [advancing, setAdvancing] = useState(false);
+  const [confirmAdvance, setConfirmAdvance] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState('');
+  const router = useRouter();
 
   useEffect(() => {
     fetch('/api/admin/season')
@@ -258,6 +262,13 @@ export default function AdminPage() {
               </span>
             </div>
           </div>
+
+          {/* Reset Season link (only during wizard-managed phases) */}
+          {['setup', 'registering', 'confirming', 'pre_draft', 'drafting'].includes(season.status) && (
+            <Link href="/admin/season-setup" className="text-accent-red text-xs hover:underline">
+              Reset Season
+            </Link>
+          )}
 
           {/* Phase pipeline */}
           <div className="flex items-center gap-1">
@@ -457,14 +468,53 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Confirm advance modal */}
+      {confirmAdvance && season && nextPhase && (() => {
+        const ADVANCE_MESSAGES: Record<string, string> = {
+          'active→playoffs': 'Are you sure? This will end the regular season. Make sure all weekly results are synced.',
+          'playoffs→completed': 'Are you sure? This marks the season as complete. Run the bracket and confirm the champion first.',
+        };
+        const key = `${season.status}→${nextPhase}`;
+        const msg = ADVANCE_MESSAGES[key] || `Advance from ${PHASE_LABELS[season.status]} to ${PHASE_LABELS[nextPhase]}?`;
+        return (
+          <ConfirmModal
+            title="Advance Season Phase"
+            message={msg}
+            confirmLabel={`Advance to ${PHASE_LABELS[nextPhase]}`}
+            variant={nextPhase === 'completed' ? 'danger' : 'safe'}
+            onCancel={() => setConfirmAdvance(false)}
+            onConfirm={() => {
+              setConfirmAdvance(false);
+              advancePhase();
+            }}
+          />
+        );
+      })()}
+
       {/* 1F: Quick Actions */}
       <div>
         <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Quick Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {/* Advance Phase */}
-          {season && nextPhase && (
-            <button onClick={advancePhase} disabled={advancing}
-              className="glass-card p-4 text-left hover:bg-white/5 transition-colors border-l-4 border-primary disabled:opacity-50">
+          {/* Advance Phase — hidden during wizard-managed statuses */}
+          {season && nextPhase && ['setup', 'registering', 'confirming', 'pre_draft', 'drafting'].includes(season.status) && (
+            <div className="glass-card p-4 text-left border-l-4 border-white/10">
+              <h4 className="text-text-muted font-semibold text-sm">Season Phase</h4>
+              <p className="text-text-muted text-xs mb-2">Season phase is managed by the Setup Wizard during initial setup.</p>
+              <Link href="/admin/season-setup" className="text-primary text-xs hover:underline">Go to Setup Wizard</Link>
+            </div>
+          )}
+          {season && nextPhase && !['setup', 'registering', 'confirming', 'pre_draft', 'drafting'].includes(season.status) && (
+            <button
+              onClick={() => {
+                if (nextPhase === 'archived') {
+                  router.push('/admin/archive');
+                } else {
+                  setConfirmAdvance(true);
+                }
+              }}
+              disabled={advancing}
+              className="glass-card p-4 text-left hover:bg-white/5 transition-colors border-l-4 border-primary disabled:opacity-50"
+            >
               <h4 className="text-white font-semibold text-sm">Advance Season Phase</h4>
               <p className="text-text-muted text-xs">
                 {advancing ? 'Advancing...' : `${PHASE_LABELS[season.status]} → ${PHASE_LABELS[nextPhase]}`}

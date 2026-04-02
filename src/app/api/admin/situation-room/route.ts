@@ -38,7 +38,7 @@ export async function GET() {
       .select('id, name, short_name, color')
       .in('id', leagueIds);
 
-    // Fetch all picks for active boards
+    // Fetch all picks for active boards (expanded limit)
     const boardIds = boards.map((b) => b.id);
     const { data: allPicks } = await supabase
       .from('draft_picks')
@@ -46,11 +46,11 @@ export async function GET() {
       .in('draft_board_id', boardIds)
       .not('player_name', 'is', null)
       .order('picked_at', { ascending: false })
-      .limit(200);
+      .limit(500);
 
     // Fetch member_seasons and members for name resolution
     const msIds = Array.from(new Set((allPicks || []).map((p) => p.member_season_id).filter(Boolean)));
-    let memberNames: Record<string, string> = {};
+    const memberNames: Record<string, string> = {};
 
     if (msIds.length > 0) {
       const { data: msData } = await supabase
@@ -83,11 +83,11 @@ export async function GET() {
       .eq('season_id', season.id);
 
     const rosterSizes: Record<string, number> = {};
-    for (const ms of (memberSeasonCounts || [])) {
+    for (const ms of memberSeasonCounts || []) {
       rosterSizes[ms.league_id] = (rosterSizes[ms.league_id] || 0) + 1;
     }
 
-    // Build draft summaries
+    // Build draft summaries with expanded data
     const drafts = boards.map((board) => {
       const league = (leagues || []).find((l) => l.id === board.league_id);
       const boardPicks = (allPicks || []).filter((p) => p.draft_board_id === board.id);
@@ -106,18 +106,20 @@ export async function GET() {
             round: board.current_round,
             pick: board.current_pick,
             teamName: memberNames[currentPickObj.member_season_id] || 'Unknown',
+            memberSeasonId: currentPickObj.member_season_id,
           };
         } else {
           currentPick = {
             round: board.current_round,
             pick: board.current_pick,
             teamName: 'TBD',
+            memberSeasonId: null,
           };
         }
       }
 
-      // Recent picks (last 3)
-      const recentPicks = boardPicks.slice(0, 3).map((p) => ({
+      // Recent picks (expanded to 10)
+      const recentPicks = boardPicks.slice(0, 10).map((p) => ({
         playerName: p.player_name,
         teamName: memberNames[p.member_season_id] || 'Unknown',
         round: p.round,
@@ -125,6 +127,42 @@ export async function GET() {
         timestamp: p.picked_at,
         position: p.position,
       }));
+
+      // Position breakdown
+      const positionBreakdown: Record<string, number> = {};
+      for (const pick of boardPicks) {
+        const pos = pick.position || 'Unknown';
+        positionBreakdown[pos] = (positionBreakdown[pos] || 0) + 1;
+      }
+
+      // Team rosters grouped by member_season_id
+      const teamPicksMap: Record<string, typeof boardPicks> = {};
+      for (const pick of boardPicks) {
+        const msId = pick.member_season_id || 'unknown';
+        if (!teamPicksMap[msId]) teamPicksMap[msId] = [];
+        teamPicksMap[msId].push(pick);
+      }
+
+      const teamRosters = Object.entries(teamPicksMap).map(([msId, picks]) => {
+        const sortedPicks = [...picks].sort((a, b) => a.overall_pick - b.overall_pick);
+        const positionCounts: Record<string, number> = {};
+        for (const p of picks) {
+          const pos = p.position || 'Unknown';
+          positionCounts[pos] = (positionCounts[pos] || 0) + 1;
+        }
+        return {
+          memberSeasonId: msId,
+          teamName: memberNames[msId] || 'Unknown',
+          picks: sortedPicks.map((p) => ({
+            round: p.round,
+            pick: p.pick_in_round,
+            overall: p.overall_pick,
+            playerName: p.player_name,
+            position: p.position,
+          })),
+          positionCounts,
+        };
+      });
 
       return {
         boardId: board.id,
@@ -135,15 +173,18 @@ export async function GET() {
         status: board.status,
         totalPicks,
         picksMade,
+        numRounds: board.num_rounds,
         currentPick,
         recentPicks,
         lastSyncedAt: board.last_synced_at,
         sleeperLinked: !!board.sleeper_draft_id,
+        positionBreakdown,
+        teamRosters,
       };
     });
 
-    // Unified activity feed (last 20 picks across all boards)
-    const recentActivity = (allPicks || []).slice(0, 20).map((p) => {
+    // Unified activity feed (expanded to 50)
+    const recentActivity = (allPicks || []).slice(0, 50).map((p) => {
       const board = boards.find((b) => b.id === p.draft_board_id);
       const league = (leagues || []).find((l) => l.id === board?.league_id);
       return {
@@ -155,7 +196,9 @@ export async function GET() {
         position: p.position,
         timestamp: p.picked_at,
         leagueName: league?.name || 'Unknown',
+        leagueShortName: league?.short_name || '',
         leagueColor: league?.color || '#6b7280',
+        boardId: p.draft_board_id,
       };
     });
 

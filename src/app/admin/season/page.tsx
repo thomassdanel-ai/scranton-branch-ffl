@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface LeagueEntry {
   id: string;
@@ -22,6 +23,8 @@ interface SeasonConfig {
   };
 }
 
+const WIZARD_MANAGED_STATUSES = ['setup', 'registering', 'confirming', 'pre_draft', 'drafting'];
+
 export default function SeasonManagementPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -29,9 +32,22 @@ export default function SeasonManagementPage() {
   const [message, setMessage] = useState('');
   const [config, setConfig] = useState<SeasonConfig | null>(null);
   const [year, setYear] = useState('');
+  const [seasonStatus, setSeasonStatus] = useState<string | null>(null);
+  const [seasonNumber, setSeasonNumber] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch('/api/admin/season')
+    // Fetch dashboard for season status (covers all statuses)
+    const fetchStatus = fetch('/api/admin/dashboard')
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.season) {
+          setSeasonStatus(data.season.status);
+          setSeasonNumber(data.season.season_number);
+        }
+      })
+      .catch(() => {});
+
+    const fetchConfig = fetch('/api/admin/season')
       .then((res) => {
         if (res.status === 401) {
           router.push('/admin');
@@ -44,9 +60,12 @@ export default function SeasonManagementPage() {
         const cfg = data.season?.config ?? data.fallbackConfig;
         setConfig(cfg);
         setYear(data.season?.year ?? cfg.currentSeason);
-      })
-      .finally(() => setLoading(false));
+      });
+
+    Promise.all([fetchStatus, fetchConfig]).finally(() => setLoading(false));
   }, [router]);
+
+  const isWizardManaged = seasonStatus !== null && WIZARD_MANAGED_STATUSES.includes(seasonStatus);
 
   function updateLeague(index: number, field: keyof LeagueEntry, value: string) {
     if (!config) return;
@@ -122,6 +141,21 @@ export default function SeasonManagementPage() {
         </p>
       </div>
 
+      {/* Wizard-managed guard banner */}
+      {isWizardManaged && (
+        <div className="glass-card p-4 border border-amber-500/30 bg-amber-500/5">
+          <p className="text-amber-300 text-sm font-semibold mb-1">
+            Season {seasonNumber} is currently being set up.
+          </p>
+          <p className="text-text-secondary text-sm">
+            Use the Setup Wizard to make changes during initial configuration.
+          </p>
+          <Link href="/admin/season-setup" className="text-primary text-sm hover:underline mt-2 inline-block">
+            Go to Setup Wizard
+          </Link>
+        </div>
+      )}
+
       {/* Season year */}
       <div className="glass-card p-6 space-y-4">
         <h2 className="font-bold text-white">Season</h2>
@@ -131,7 +165,8 @@ export default function SeasonManagementPage() {
             type="text"
             value={year}
             onChange={(e) => setYear(e.target.value)}
-            className="w-32 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-none focus:border-primary stat"
+            disabled={isWizardManaged}
+            className="w-32 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-none focus:border-primary stat disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
       </div>
@@ -140,12 +175,14 @@ export default function SeasonManagementPage() {
       <div className="glass-card p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-bold text-white">Leagues</h2>
-          <button
-            onClick={addLeague}
-            className="text-sm text-primary hover:text-primary-dark transition-colors"
-          >
-            + Add League
-          </button>
+          {!isWizardManaged && (
+            <button
+              onClick={addLeague}
+              className="text-sm text-primary hover:text-primary-dark transition-colors"
+            >
+              + Add League
+            </button>
+          )}
         </div>
 
         {config.leagues.map((league, i) => (
@@ -160,7 +197,7 @@ export default function SeasonManagementPage() {
                   {league.name || 'New League'}
                 </span>
               </div>
-              {config.leagues.length > 1 && (
+              {config.leagues.length > 1 && !isWizardManaged && (
                 <button
                   onClick={() => removeLeague(i)}
                   className="text-xs text-accent-red hover:underline"
@@ -177,8 +214,9 @@ export default function SeasonManagementPage() {
                   type="text"
                   value={league.name}
                   onChange={(e) => updateLeague(i, 'name', e.target.value)}
+                  disabled={isWizardManaged}
                   placeholder="Sales"
-                  className="w-full px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                  className="w-full px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -187,8 +225,9 @@ export default function SeasonManagementPage() {
                   type="text"
                   value={league.shortName}
                   onChange={(e) => updateLeague(i, 'shortName', e.target.value)}
+                  disabled={isWizardManaged}
                   placeholder="Sales"
-                  className="w-full px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                  className="w-full px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -202,8 +241,9 @@ export default function SeasonManagementPage() {
                 type="text"
                 value={league.id}
                 onChange={(e) => updateLeague(i, 'id', e.target.value)}
+                disabled={isWizardManaged}
                 placeholder="1260755589445718016"
-                className="w-full px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm font-mono focus:outline-none focus:border-primary"
+                className="w-full px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm font-mono focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -214,7 +254,8 @@ export default function SeasonManagementPage() {
                   type="color"
                   value={league.color}
                   onChange={(e) => updateLeague(i, 'color', e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer bg-transparent border-0"
+                  disabled={isWizardManaged}
+                  className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span className="text-xs text-text-muted font-mono">{league.color}</span>
               </div>
@@ -242,26 +283,29 @@ export default function SeasonManagementPage() {
                 },
               })
             }
-            className="w-20 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-none focus:border-primary stat"
+            disabled={isWizardManaged}
+            className="w-20 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-none focus:border-primary stat disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
       </div>
 
-      {/* Save */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save Configuration'}
-        </button>
-        {message && (
-          <p className={`text-sm ${message.startsWith('Error') ? 'text-accent-red' : 'text-accent-green'}`}>
-            {message}
-          </p>
-        )}
-      </div>
+      {/* Save — hidden during wizard-managed setup */}
+      {!isWizardManaged && (
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Configuration'}
+          </button>
+          {message && (
+            <p className={`text-sm ${message.startsWith('Error') ? 'text-accent-red' : 'text-accent-green'}`}>
+              {message}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
