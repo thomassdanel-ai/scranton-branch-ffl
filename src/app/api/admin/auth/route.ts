@@ -67,6 +67,18 @@ export async function DELETE() {
 // PUT: First-time setup — create the initial super_admin account
 // Only works when no admin_users exist yet
 export async function PUT(req: NextRequest) {
+  const supabase = createServiceClient();
+
+  // Check if any admin users exist FIRST (before validation)
+  // The client sends an empty probe to distinguish 'setup' vs 'login' mode
+  const { count } = await supabase
+    .from('admin_users')
+    .select('id', { count: 'exact', head: true });
+
+  if (count && count > 0) {
+    return NextResponse.json({ error: 'Admin account already exists' }, { status: 409 });
+  }
+
   const { email, password, displayName } = await req.json();
 
   if (!email || !password || !displayName) {
@@ -75,17 +87,6 @@ export async function PUT(req: NextRequest) {
 
   if (password.length < 8) {
     return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
-  }
-
-  const supabase = createServiceClient();
-
-  // Check if any admin users exist
-  const { count } = await supabase
-    .from('admin_users')
-    .select('id', { count: 'exact', head: true });
-
-  if (count && count > 0) {
-    return NextResponse.json({ error: 'Admin account already exists' }, { status: 409 });
   }
 
   // Get org
