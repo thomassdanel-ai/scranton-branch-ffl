@@ -29,7 +29,7 @@ export async function getActiveSeasonId(): Promise<string | null> {
   const { data } = await supabase
     .from('seasons')
     .select('id')
-    .in('status', ['active', 'drafting', 'playoffs', 'pre_draft', 'setup'])
+    .in('status', ['active', 'drafting', 'playoffs', 'pre_draft', 'setup', 'registering', 'confirming'])
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
@@ -139,7 +139,7 @@ export async function getActiveSeasonYear(): Promise<string> {
   const { data } = await supabase
     .from('seasons')
     .select('year')
-    .in('status', ['active', 'drafting', 'playoffs', 'pre_draft', 'setup'])
+    .in('status', ['active', 'drafting', 'playoffs', 'pre_draft', 'setup', 'registering', 'confirming'])
     .order('created_at', { ascending: false })
     .limit(1)
     .single();

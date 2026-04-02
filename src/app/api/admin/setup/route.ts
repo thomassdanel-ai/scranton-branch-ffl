@@ -26,7 +26,7 @@ export async function GET() {
     .from('seasons')
     .select('*')
     .eq('org_id', orgId)
-    .in('status', ['setup', 'pre_draft', 'drafting'])
+    .in('status', ['setup', 'registering', 'confirming', 'pre_draft', 'drafting'])
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
