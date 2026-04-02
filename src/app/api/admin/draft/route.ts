@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { isAuthed } from '@/lib/auth';
+import { requireAuth, AuthError } from '@/lib/auth';
 
 // GET: Fetch draft boards for the current drafting season
 export async function GET() {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const supabase = createServiceClient();
+    const supabase = createServiceClient();
 
   const { data: org } = await supabase
     .from('organizations')
@@ -55,11 +54,17 @@ export async function GET() {
     .select('*')
     .eq('season_id', season.id);
 
-  return NextResponse.json({
-    season,
-    boards: boards || [],
-    leagues: leagues || [],
-    members: members || [],
-    memberSeasons: memberSeasons || [],
-  });
+    return NextResponse.json({
+      season,
+      boards: boards || [],
+      leagues: leagues || [],
+      members: members || [],
+      memberSeasons: memberSeasons || [],
+    });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }

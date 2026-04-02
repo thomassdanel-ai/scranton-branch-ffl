@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { isAuthed } from '@/lib/auth';
+import { requireAuth, AuthError } from '@/lib/auth';
 
 // GET: Fetch a single draft board with all picks
 export async function GET(req: NextRequest) {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const boardId = req.nextUrl.searchParams.get('boardId');
+    const boardId = req.nextUrl.searchParams.get('boardId');
   if (!boardId) {
     return NextResponse.json({ error: 'Missing boardId' }, { status: 400 });
   }
@@ -44,21 +43,26 @@ export async function GET(req: NextRequest) {
     .select('id, full_name, display_name')
     .in('id', msIds.length > 0 ? msIds : ['_none_']);
 
-  return NextResponse.json({
-    board,
-    picks: picks || [],
-    memberSeasons: memberSeasons || [],
-    members: members || [],
-  });
+    return NextResponse.json({
+      board,
+      picks: picks || [],
+      memberSeasons: memberSeasons || [],
+      members: members || [],
+    });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }
 
 // POST: Actions on a draft board (start, pick, pause, resume, complete, reset-mock)
 export async function POST(req: NextRequest) {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const body = await req.json();
+    const body = await req.json();
   const { boardId, action } = body as {
     boardId: string;
     action: 'start' | 'pick' | 'pause' | 'resume' | 'complete' | 'reset-mock';
@@ -280,5 +284,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, status: 'pending' });
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }

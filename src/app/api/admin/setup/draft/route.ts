@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { isAuthed } from '@/lib/auth';
+import { requireAuth, AuthError } from '@/lib/auth';
 
 function shuffle<T>(arr: T[]): T[] {
   const result = [...arr];
@@ -15,11 +15,10 @@ function shuffle<T>(arr: T[]): T[] {
 
 // POST: Randomize or lock draft order
 export async function POST(req: NextRequest) {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const body = await req.json();
+    const body = await req.json();
   const { seasonId, action, draftOrders } = body as {
     seasonId: string;
     action: 'randomize' | 'lock';
@@ -158,5 +157,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, status: 'drafting' });
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }

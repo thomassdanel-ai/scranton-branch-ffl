@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { computePowerRankings } from '@/lib/rankings/compute';
 import { buildWeeklyResults, buildPlayerScores } from '@/lib/weekly-results';
 import { getSeasonLeagues, getActiveSeasonId } from '@/lib/config';
+import { resolveMemberSeasonsBatch } from '@/lib/member-resolver';
 
 function isGameDay(): boolean {
   const day = new Date().getDay();
@@ -22,25 +23,11 @@ function shouldSync(nflState: { season_type: string }): boolean {
   return minute < 5 || (minute >= 30 && minute < 35);
 }
 
-async function findSeasonId(supabase: ReturnType<typeof createServiceClient>, year: string): Promise<string> {
-  // Try the shared active season lookup
+async function findSeasonId(): Promise<string> {
   const activeId = await getActiveSeasonId();
   if (activeId) return activeId;
 
-  // Last resort: create a season record
-  const { data: created, error } = await supabase
-    .from('seasons')
-    .insert({
-      year,
-      is_current: true,
-      status: 'active',
-      config: {},
-    })
-    .select('id')
-    .single();
-
-  if (error || !created) throw new Error(`Failed to create season record: ${error?.message}`);
-  return created.id;
+  throw new Error('No active season found. Create one via the admin setup wizard.');
 }
 
 // Auto-save finalized weeks that haven't been saved yet
@@ -79,7 +66,9 @@ async function saveCompletedWeeks(
 
         if (!matchups.length) continue;
 
-        const rows = buildWeeklyResults(seasonId, league.sleeperId, week, matchups, rosters);
+        const msMap = await resolveMemberSeasonsBatch(seasonId, league.sleeperId);
+
+        const rows = buildWeeklyResults(seasonId, league.sleeperId, week, matchups, rosters, msMap);
         if (rows.length > 0) {
           const { error } = await supabase
             .from('weekly_results')
@@ -90,7 +79,7 @@ async function saveCompletedWeeks(
         const rosterPositions = leagueData.roster_positions.filter(
           (pos) => pos !== 'BN' && pos !== 'IR'
         );
-        const playerRows = buildPlayerScores(seasonId, league.sleeperId, week, matchups, rosterPositions);
+        const playerRows = buildPlayerScores(seasonId, league.sleeperId, week, matchups, rosterPositions, msMap);
         if (playerRows.length > 0) {
           await supabase
             .from('player_weekly_scores')
@@ -121,43 +110,50 @@ export async function GET(req: NextRequest) {
 
     const week = nflState.week;
     const supabase = createServiceClient();
-    const seasonId = await findSeasonId(supabase, nflState.season);
+    const seasonId = await findSeasonId();
     const leagues = await getSeasonLeagues(seasonId);
     const results: Record<string, unknown> = {};
+    const now = new Date().toISOString();
 
-    for (const league of leagues) {
-      const [rosters, matchups, transactions] = await Promise.all([
-        getLeagueRosters(league.sleeperId),
-        getMatchups(league.sleeperId, week),
-        getTransactions(league.sleeperId, week),
-      ]);
+    // Fetch all leagues in parallel (Sleeper allows 1000 calls/min)
+    const leagueResults = await Promise.allSettled(
+      leagues.map(async (league) => {
+        const [rosters, matchups, transactions] = await Promise.all([
+          getLeagueRosters(league.sleeperId),
+          getMatchups(league.sleeperId, week),
+          getTransactions(league.sleeperId, week),
+        ]);
+        return { league, rosters, matchups, transactions };
+      })
+    );
 
-      const [snapshotResult, txResult] = await Promise.all([
-        supabase.from('league_snapshots').upsert(
-          {
-            season_id: seasonId,
-            league_id: league.sleeperId,
-            week,
-            standings: rosters,
-            matchups,
-            fetched_at: new Date().toISOString(),
-          },
-          { onConflict: 'league_id,week' }
-        ),
-        supabase.from('transactions_cache').upsert(
-          {
-            season_id: seasonId,
-            league_id: league.sleeperId,
-            week,
-            transactions,
-            fetched_at: new Date().toISOString(),
-          },
-          { onConflict: 'league_id,week' }
-        ),
-      ]);
+    // Collect rows for batch upsert
+    const snapshotRows: Array<Record<string, unknown>> = [];
+    const txRows: Array<Record<string, unknown>> = [];
 
-      if (snapshotResult.error) throw new Error(`Snapshot upsert failed (${league.name}): ${snapshotResult.error.message}`);
-      if (txResult.error) throw new Error(`Transactions upsert failed (${league.name}): ${txResult.error.message}`);
+    for (const result of leagueResults) {
+      if (result.status === 'rejected') {
+        console.error('League fetch failed:', result.reason);
+        continue;
+      }
+      const { league, rosters, matchups, transactions } = result.value;
+
+      snapshotRows.push({
+        season_id: seasonId,
+        league_id: league.sleeperId,
+        week,
+        standings: rosters,
+        matchups,
+        fetched_at: now,
+      });
+
+      txRows.push({
+        season_id: seasonId,
+        league_id: league.sleeperId,
+        week,
+        transactions,
+        fetched_at: now,
+      });
 
       results[league.sleeperId] = {
         league: league.name,
@@ -167,6 +163,19 @@ export async function GET(req: NextRequest) {
         transactions: transactions.length,
       };
     }
+
+    // Batch upsert snapshots and transactions in parallel
+    const [snapshotResult, txResult] = await Promise.all([
+      snapshotRows.length > 0
+        ? supabase.from('league_snapshots').upsert(snapshotRows, { onConflict: 'league_id,week' })
+        : { error: null },
+      txRows.length > 0
+        ? supabase.from('transactions_cache').upsert(txRows, { onConflict: 'league_id,week' })
+        : { error: null },
+    ]);
+
+    if (snapshotResult.error) throw new Error(`Snapshot batch upsert failed: ${snapshotResult.error.message}`);
+    if (txResult.error) throw new Error(`Transactions batch upsert failed: ${txResult.error.message}`);
 
     const autoSaved = await saveCompletedWeeks(supabase, seasonId, week);
 

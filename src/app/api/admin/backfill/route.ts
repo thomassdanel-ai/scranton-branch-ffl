@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLeague, getLeagueRosters, getMatchups, getTransactions } from '@/lib/sleeper/api';
 import { createServiceClient } from '@/lib/supabase/server';
-import { isAuthed } from '@/lib/auth';
+import { requireAuth, AuthError } from '@/lib/auth';
 import { buildWeeklyResults, buildPlayerScores } from '@/lib/weekly-results';
 import { getSeasonLeagues, getActiveSeasonId } from '@/lib/config';
 import { computePowerRankings } from '@/lib/rankings/compute';
 
 // POST: Backfill weekly results for all leagues, all weeks played
 export async function POST(req: NextRequest) {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const body = await req.json();
+    const body = await req.json();
   const { seasonId, maxWeek } = body as { seasonId?: string; maxWeek?: number };
 
   const supabase = createServiceClient();
@@ -240,14 +239,20 @@ export async function POST(req: NextRequest) {
     console.error('Power rankings backfill failed:', err);
   }
 
-  return NextResponse.json({
-    ok: true,
-    seasonId: sId,
-    weeksBackfilled: weeksToFetch,
-    leagues: summary,
-    bracketResults: bracketRows,
-    playerScores: totalPlayerRows,
-    transactionsBackfilled: transactionRows,
-    rankingsBackfilled,
-  });
+    return NextResponse.json({
+      ok: true,
+      seasonId: sId,
+      weeksBackfilled: weeksToFetch,
+      leagues: summary,
+      bracketResults: bracketRows,
+      playerScores: totalPlayerRows,
+      transactionsBackfilled: transactionRows,
+      rankingsBackfilled,
+    });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }

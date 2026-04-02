@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { isAuthed } from '@/lib/auth';
+import { requireAuth, AuthError } from '@/lib/auth';
 import { DEFAULT_LEAGUE_COLORS, DEFAULT_LEAGUE_SHORT_NAMES, DEFAULT_CHAMPIONSHIP } from '@/config/constants';
 
 async function getOrgId(supabase: ReturnType<typeof createServiceClient>): Promise<string> {
@@ -15,12 +15,11 @@ async function getOrgId(supabase: ReturnType<typeof createServiceClient>): Promi
 
 // GET: Return current setup-phase season with all related data
 export async function GET() {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const supabase = createServiceClient();
-  const orgId = await getOrgId(supabase);
+    const supabase = createServiceClient();
+    const orgId = await getOrgId(supabase);
 
   // Find a season in setup, pre_draft, or drafting status
   const { data: season } = await supabase
@@ -69,21 +68,26 @@ export async function GET() {
     .select('*')
     .eq('season_id', season.id);
 
-  return NextResponse.json({
-    season,
-    leagues: leagues || [],
-    members: members || [],
-    memberSeasons: memberSeasons || [],
-  });
+    return NextResponse.json({
+      season,
+      leagues: leagues || [],
+      members: members || [],
+      memberSeasons: memberSeasons || [],
+    });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }
 
 // POST: Create a new season (Step 1)
 export async function POST(req: NextRequest) {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const body = await req.json();
+    const body = await req.json();
   const { year, numLeagues, leagueNames, rosterSize } = body as {
     year: number;
     numLeagues: number;
@@ -132,12 +136,6 @@ export async function POST(req: NextRequest) {
 
   const seasonNumber = (latest?.season_number || 0) + 1;
 
-  // Unset is_current on all previous seasons (keep old column in sync)
-  await supabase
-    .from('seasons')
-    .update({ is_current: false })
-    .eq('is_current', true);
-
   // Create season with championship settings
   const { data: season, error: seasonErr } = await supabase
     .from('seasons')
@@ -146,7 +144,6 @@ export async function POST(req: NextRequest) {
       season_number: seasonNumber,
       year,
       status: 'setup',
-      is_current: true,
       num_leagues: numLeagues,
       roster_size_per_league: rosterSize,
       settings: { championship: DEFAULT_CHAMPIONSHIP },
@@ -176,5 +173,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create leagues' }, { status: 500 });
   }
 
-  return NextResponse.json({ season }, { status: 201 });
+    return NextResponse.json({ season }, { status: 201 });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }

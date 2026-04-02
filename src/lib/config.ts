@@ -1,5 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server';
-import { DEFAULT_CHAMPIONSHIP } from '@/config/constants';
+import { DEFAULT_CHAMPIONSHIP, SEASON_STATUS_TRANSITIONS, type SeasonStatusValue } from '@/config/constants';
 
 export type LeagueInfo = {
   dbId: string;
@@ -21,26 +21,17 @@ export type SeasonStatus = {
 };
 
 /**
- * Find the active season ID.
- * Checks status-based lookup first, then falls back to is_current.
+ * Find the active season ID by status.
  */
 export async function getActiveSeasonId(): Promise<string | null> {
   const supabase = createServiceClient();
 
-  const { data: byStatus } = await supabase
+  const { data } = await supabase
     .from('seasons')
     .select('id')
     .in('status', ['active', 'drafting', 'playoffs', 'pre_draft', 'setup'])
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
-
-  if (byStatus?.id) return byStatus.id;
-
-  const { data } = await supabase
-    .from('seasons')
-    .select('id')
-    .eq('is_current', true)
     .single();
 
   return data?.id ?? null;
@@ -145,7 +136,7 @@ export async function findLeagueBySleeperIdAsync(sleeperId: string): Promise<Lea
 export async function getActiveSeasonYear(): Promise<string> {
   const supabase = createServiceClient();
 
-  const { data: byStatus } = await supabase
+  const { data } = await supabase
     .from('seasons')
     .select('year')
     .in('status', ['active', 'drafting', 'playoffs', 'pre_draft', 'setup'])
@@ -153,17 +144,9 @@ export async function getActiveSeasonYear(): Promise<string> {
     .limit(1)
     .single();
 
-  if (byStatus?.year) return String(byStatus.year);
-
-  const { data } = await supabase
-    .from('seasons')
-    .select('year')
-    .eq('is_current', true)
-    .single();
-
   if (data?.year) return String(data.year);
 
-  // No active or current season — fall back to most recent season's year
+  // No active season — fall back to most recent season's year
   const { data: latest } = await supabase
     .from('seasons')
     .select('year')
@@ -199,4 +182,15 @@ export async function getChampionshipConfig(seasonId?: string): Promise<Champion
     format:
       (championship?.format as string) ?? DEFAULT_CHAMPIONSHIP.format,
   };
+}
+
+/**
+ * Validate a season status transition.
+ * Throws if the transition is not allowed.
+ */
+export function validateStatusTransition(from: SeasonStatusValue, to: SeasonStatusValue): void {
+  const allowed = SEASON_STATUS_TRANSITIONS[from];
+  if (!allowed.includes(to)) {
+    throw new Error(`Invalid status transition: ${from} → ${to}. Allowed: ${allowed.join(', ') || 'none'}`);
+  }
 }

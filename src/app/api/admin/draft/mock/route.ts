@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { isAuthed } from '@/lib/auth';
+import { requireAuth, AuthError } from '@/lib/auth';
 
 // POST: Create a mock draft board for a league (copies the real board's structure)
 export async function POST(req: NextRequest) {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const body = await req.json();
+    const body = await req.json();
   const { leagueId, seasonId } = body as { leagueId: string; seasonId: string };
 
   if (!leagueId || !seasonId) {
@@ -93,5 +92,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to generate mock picks' }, { status: 500 });
   }
 
-  return NextResponse.json({ board }, { status: 201 });
+    return NextResponse.json({ board }, { status: 201 });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }

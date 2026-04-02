@@ -17,8 +17,8 @@ const MEMORY_TTL = 1000 * 60 * 10; // 10 min in-memory cache
 /**
  * Get a player lookup map. Tries in order:
  * 1. In-memory cache (10 min)
- * 2. Supabase players_cache table
- * 3. Fresh fetch from Sleeper API (and stores in Supabase)
+ * 2. Supabase players_normalized table (instant per-row lookups)
+ * 3. Fresh fetch from Sleeper API (populates players_normalized)
  */
 export async function getPlayerLookup(): Promise<PlayerLookup> {
   // 1. Memory cache
@@ -26,27 +26,36 @@ export async function getPlayerLookup(): Promise<PlayerLookup> {
     return memoryCache;
   }
 
-  // 2. Supabase cache
+  // 2. Supabase normalized table
   try {
     const supabase = createServiceClient();
-    const { data } = await supabase
-      .from('players_cache')
-      .select('data, fetched_at')
-      .order('fetched_at', { ascending: false })
-      .limit(1)
-      .single();
+    const { data, count } = await supabase
+      .from('players_normalized')
+      .select('player_id, full_name, position, team', { count: 'exact', head: true });
 
-    if (data?.data) {
-      const age = Date.now() - new Date(data.fetched_at).getTime();
-      // Use if less than 24 hours old
-      if (age < 1000 * 60 * 60 * 24) {
-        memoryCache = data.data as PlayerLookup;
+    // Only use if table has data
+    if (count && count > 0) {
+      const { data: players } = await supabase
+        .from('players_normalized')
+        .select('player_id, full_name, position, team');
+
+      if (players && players.length > 0) {
+        const lookup: PlayerLookup = {};
+        for (const p of players) {
+          lookup[p.player_id] = {
+            player_id: p.player_id,
+            full_name: p.full_name,
+            position: p.position ?? 'Unknown',
+            team: p.team ?? null,
+          };
+        }
+        memoryCache = lookup;
         memoryCacheTime = Date.now();
-        return memoryCache;
+        return lookup;
       }
     }
   } catch {
-    // Supabase unavailable — continue to fresh fetch
+    // Table may not exist yet — continue to fresh fetch
   }
 
   // 3. Fresh fetch
@@ -54,29 +63,57 @@ export async function getPlayerLookup(): Promise<PlayerLookup> {
 }
 
 /**
- * Fetch all players from Sleeper and store in Supabase.
+ * Fetch all players from Sleeper and upsert into players_normalized.
  */
 export async function refreshPlayerCache(): Promise<PlayerLookup> {
   const raw = await getAllPlayers();
   const lookup: PlayerLookup = {};
+  const rows: Array<{
+    player_id: string;
+    full_name: string;
+    first_name: string | null;
+    last_name: string | null;
+    position: string | null;
+    team: string | null;
+    status: string | null;
+    updated_at: string;
+  }> = [];
+
+  const now = new Date().toISOString();
 
   for (const id of Object.keys(raw)) {
     const p = raw[id];
+    const fullName = p.full_name ?? `${p.first_name} ${p.last_name}`;
+
     lookup[id] = {
       player_id: id,
-      full_name: p.full_name ?? `${p.first_name} ${p.last_name}`,
+      full_name: fullName,
       position: p.position ?? 'Unknown',
       team: p.team ?? null,
     };
+
+    rows.push({
+      player_id: id,
+      full_name: fullName,
+      first_name: p.first_name ?? null,
+      last_name: p.last_name ?? null,
+      position: p.position ?? null,
+      team: p.team ?? null,
+      status: p.status ?? null,
+      updated_at: now,
+    });
   }
 
-  // Store in Supabase
+  // Upsert into players_normalized in batches
   try {
     const supabase = createServiceClient();
-    await supabase.from('players_cache').insert({
-      data: lookup,
-      fetched_at: new Date().toISOString(),
-    });
+    const BATCH_SIZE = 1000;
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      await supabase
+        .from('players_normalized')
+        .upsert(batch, { onConflict: 'player_id' });
+    }
   } catch {
     // Non-fatal — we still have the data in memory
   }

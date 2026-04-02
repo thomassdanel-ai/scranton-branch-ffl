@@ -4,40 +4,25 @@ import { getLeagueStandings } from '@/lib/sleeper/league-data';
 import { computePowerRankings } from '@/lib/rankings/compute';
 import { loadBracket } from '@/lib/bracket/engine';
 import { getSeasonLeagues } from '@/lib/config';
-import { isAuthed } from '@/lib/auth';
+import { requireAuth, AuthError } from '@/lib/auth';
 
 /**
  * POST: Archive the current season.
  * Snapshots standings, power rankings, and bracket data into season_archives.
  */
 export async function POST(req: NextRequest) {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const supabase = createServiceClient();
+    const supabase = createServiceClient();
 
-  // Get current season (try status first, fall back to is_current)
-  let season: { id: string; year: string } | null = null;
-
-  const { data: byStatus } = await supabase
+  const { data: season } = await supabase
     .from('seasons')
     .select('id, year')
     .in('status', ['active', 'completed'])
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
-
-  if (byStatus) {
-    season = byStatus;
-  } else {
-    const { data: byCurrent } = await supabase
-      .from('seasons')
-      .select('id, year')
-      .eq('is_current', true)
-      .single();
-    season = byCurrent;
-  }
 
   if (!season) {
     return NextResponse.json({ error: 'No current season found' }, { status: 400 });
@@ -107,10 +92,16 @@ export async function POST(req: NextRequest) {
   // Mark season as archived
   await supabase
     .from('seasons')
-    .update({ status: 'archived', is_current: false, updated_at: new Date().toISOString() })
+    .update({ status: 'archived', updated_at: new Date().toISOString() })
     .eq('id', season.id);
 
-  return NextResponse.json({ ok: true, year: season.year });
+    return NextResponse.json({ ok: true, year: season.year });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

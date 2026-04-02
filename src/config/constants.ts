@@ -13,3 +13,32 @@ export const DEFAULT_CHAMPIONSHIP = {
   qualifiersPerLeague: 3,
   format: 'bracket' as const,
 };
+
+// Season status lifecycle:
+// setup → registering → confirming → pre_draft → drafting → active → playoffs → completed → archived
+export const VALID_SEASON_STATUSES = [
+  'setup',
+  'registering',
+  'confirming',
+  'pre_draft',
+  'drafting',
+  'active',
+  'playoffs',
+  'completed',
+  'archived',
+] as const;
+
+export type SeasonStatusValue = (typeof VALID_SEASON_STATUSES)[number];
+
+// Valid transitions: each status maps to the statuses it can move to
+export const SEASON_STATUS_TRANSITIONS: Record<SeasonStatusValue, SeasonStatusValue[]> = {
+  setup: ['registering', 'pre_draft'],
+  registering: ['confirming', 'pre_draft'],
+  confirming: ['pre_draft'],
+  pre_draft: ['drafting'],
+  drafting: ['active'],
+  active: ['playoffs'],
+  playoffs: ['completed'],
+  completed: ['archived'],
+  archived: [],
+};

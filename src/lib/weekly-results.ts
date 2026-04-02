@@ -5,7 +5,8 @@ export function buildWeeklyResults(
   leagueId: string,
   week: number,
   matchups: SleeperMatchup[],
-  rosters: SleeperRoster[]
+  rosters: SleeperRoster[],
+  memberSeasonMap?: Map<number, string>
 ) {
   const grouped: Record<number, SleeperMatchup[]> = {};
   for (const m of matchups) {
@@ -59,6 +60,7 @@ export function buildWeeklyResults(
         streak: roster?.metadata?.streak ?? null,
         is_playoff: false,
         is_bracket: false,
+        member_season_id: memberSeasonMap?.get(side.roster_id) ?? null,
         fetched_at: new Date().toISOString(),
       });
     }
@@ -76,7 +78,8 @@ export function buildPlayerScores(
   leagueId: string,
   week: number,
   matchups: SleeperMatchup[],
-  rosterPositions: string[]
+  rosterPositions: string[],
+  memberSeasonMap?: Map<number, string>
 ) {
   const rows: Array<Record<string, unknown>> = [];
   const now = new Date().toISOString();
@@ -99,6 +102,7 @@ export function buildPlayerScores(
           points: m.starters_points?.[i] ?? m.players_points?.[playerId] ?? 0,
           is_starter: true,
           slot_position: rosterPositions[i] ?? 'FLEX',
+          member_season_id: memberSeasonMap?.get(m.roster_id) ?? null,
           fetched_at: now,
         });
       }
@@ -118,6 +122,7 @@ export function buildPlayerScores(
           points: m.players_points?.[playerId] ?? 0,
           is_starter: false,
           slot_position: 'BN',
+          member_season_id: memberSeasonMap?.get(m.roster_id) ?? null,
           fetched_at: now,
         });
       }

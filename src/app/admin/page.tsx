@@ -3,21 +3,36 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+type AuthMode = 'checking' | 'setup' | 'login' | 'authed';
+
 export default function AdminPage() {
-  const [authed, setAuthed] = useState(false);
+  const [mode, setMode] = useState<AuthMode>('checking');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
-  const [checking, setChecking] = useState(true);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState('');
 
   useEffect(() => {
-    // Check if already authed by trying to hit a protected endpoint
+    // Check if already authed
     fetch('/api/admin/season')
       .then((res) => {
-        if (res.ok) setAuthed(true);
+        if (res.ok) {
+          setMode('authed');
+        } else {
+          // Check if any admin users exist (PUT to auth returns 409 if they do)
+          return fetch('/api/admin/auth', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: '', password: '', displayName: '' }),
+          }).then((setupRes) => {
+            // 409 = admin exists, need login. 400 = no admin yet, show setup
+            setMode(setupRes.status === 409 ? 'login' : 'setup');
+          });
+        }
       })
-      .finally(() => setChecking(false));
+      .catch(() => setMode('login'));
   }, []);
 
   async function handleLogin(e: React.FormEvent) {
@@ -26,16 +41,40 @@ export default function AdminPage() {
     const res = await fetch('/api/admin/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ email, password }),
     });
     if (res.ok) {
-      setAuthed(true);
+      setMode('authed');
     } else {
-      setError('Wrong password');
+      const data = await res.json();
+      setError(data.error || 'Login failed');
     }
   }
 
-  if (checking) {
+  async function handleSetup(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    const res = await fetch('/api/admin/auth', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, displayName }),
+    });
+    if (res.ok) {
+      setMode('authed');
+    } else {
+      const data = await res.json();
+      setError(data.error || 'Setup failed');
+    }
+  }
+
+  async function handleLogout() {
+    await fetch('/api/admin/auth', { method: 'DELETE' });
+    setMode('login');
+    setEmail('');
+    setPassword('');
+  }
+
+  if (mode === 'checking') {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <p className="text-text-muted">Loading...</p>
@@ -43,18 +82,71 @@ export default function AdminPage() {
     );
   }
 
-  if (!authed) {
+  if (mode === 'setup') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <form onSubmit={handleSetup} className="glass-card p-8 w-full max-w-sm space-y-4">
+          <h1 className="text-xl font-bold text-white text-center">Create Admin Account</h1>
+          <p className="text-text-muted text-sm text-center">First-time setup. Create your commissioner account.</p>
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Display name"
+            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary"
+            autoFocus
+            required
+          />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary"
+            required
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password (8+ characters)"
+            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary"
+            minLength={8}
+            required
+          />
+          {error && <p className="text-accent-red text-sm text-center">{error}</p>}
+          <button
+            type="submit"
+            className="w-full px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors"
+          >
+            Create Account
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  if (mode === 'login') {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <form onSubmit={handleLogin} className="glass-card p-8 w-full max-w-sm space-y-4">
           <h1 className="text-xl font-bold text-white text-center">Commissioner Login</h1>
           <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary"
+            autoFocus
+            required
+          />
+          <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter password"
+            placeholder="Password"
             className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary"
-            autoFocus
+            required
           />
           {error && <p className="text-accent-red text-sm text-center">{error}</p>}
           <button
@@ -70,7 +162,15 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-extrabold text-white">Commissioner Panel</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold text-white">Commissioner Panel</h1>
+        <button
+          onClick={handleLogout}
+          className="px-3 py-1 text-sm text-text-muted hover:text-white border border-white/10 rounded-lg transition-colors"
+        >
+          Log Out
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Link href="/admin/members" className="glass-card p-6 hover:bg-white/5 transition-colors">

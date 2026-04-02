@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { isAuthed } from '@/lib/auth';
+import { requireAuth, AuthError } from '@/lib/auth';
 
 async function getOrgId(supabase: ReturnType<typeof createServiceClient>): Promise<string> {
   const { data } = await supabase
@@ -13,32 +13,36 @@ async function getOrgId(supabase: ReturnType<typeof createServiceClient>): Promi
 }
 
 export async function GET() {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    await requireAuth();
+
+    const supabase = createServiceClient();
+    const orgId = await getOrgId(supabase);
+
+    const { data, error } = await supabase
+      .from('members')
+      .select('*')
+      .eq('org_id', orgId)
+      .order('full_name');
+
+    if (error) {
+      return NextResponse.json({ error: 'Failed to fetch members' }, { status: 500 });
+    }
+
+    return NextResponse.json({ members: data });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
   }
-
-  const supabase = createServiceClient();
-  const orgId = await getOrgId(supabase);
-
-  const { data, error } = await supabase
-    .from('members')
-    .select('*')
-    .eq('org_id', orgId)
-    .order('full_name');
-
-  if (error) {
-    return NextResponse.json({ error: 'Failed to fetch members' }, { status: 500 });
-  }
-
-  return NextResponse.json({ members: data });
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const body = await req.json();
+    const body = await req.json();
   const { full_name, display_name, email, notes } = body;
 
   if (!full_name || typeof full_name !== 'string' || full_name.trim().length === 0) {
@@ -71,5 +75,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create member' }, { status: 500 });
   }
 
-  return NextResponse.json({ member: data }, { status: 201 });
+    return NextResponse.json({ member: data }, { status: 201 });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }

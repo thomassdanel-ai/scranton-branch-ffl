@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getLeagueRosters, getLeagueUsers } from '@/lib/sleeper/api';
-import { isAuthed } from '@/lib/auth';
+import { requireAuth, AuthError } from '@/lib/auth';
 
 // POST: Link Sleeper league IDs and map rosters to members
 export async function POST(req: NextRequest) {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    await requireAuth();
 
-  const body = await req.json();
+    const body = await req.json();
   const { seasonId, leagueLinks, rosterMappings } = body as {
     seasonId: string;
     leagueLinks: Record<string, string>; // leagueId (ours) -> sleeperLeagueId
@@ -52,21 +51,25 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 }
 
 // GET: Fetch Sleeper rosters for auto-matching
 export async function GET(req: NextRequest) {
-  if (!isAuthed()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const sleeperLeagueId = req.nextUrl.searchParams.get('sleeper_league_id');
-  if (!sleeperLeagueId || !/^\d+$/.test(sleeperLeagueId)) {
-    return NextResponse.json({ error: 'Invalid Sleeper league ID' }, { status: 400 });
-  }
-
   try {
+    await requireAuth();
+
+    const sleeperLeagueId = req.nextUrl.searchParams.get('sleeper_league_id');
+    if (!sleeperLeagueId || !/^\d+$/.test(sleeperLeagueId)) {
+      return NextResponse.json({ error: 'Invalid Sleeper league ID' }, { status: 400 });
+    }
+
     const [rosters, users] = await Promise.all([
       getLeagueRosters(sleeperLeagueId),
       getLeagueUsers(sleeperLeagueId),
@@ -84,7 +87,10 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({ rosters: rosterInfo });
-  } catch {
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     return NextResponse.json({ error: 'Failed to fetch Sleeper data' }, { status: 500 });
   }
 }
