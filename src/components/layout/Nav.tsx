@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useLeagueConfig } from '@/components/providers/ConfigProvider';
 import { ORG_SHORT_NAME } from '@/config/constants';
 
@@ -16,7 +16,14 @@ const navLinks = [
 
 export default function Nav() {
   const pathname = usePathname();
-  const { leagues } = useLeagueConfig();
+  const router = useRouter();
+  const { leagues, member } = useLeagueConfig();
+
+  async function handleClearIdentity() {
+    await fetch('/api/identify', { method: 'DELETE' });
+    router.push('/identify');
+    router.refresh();
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-bg-primary/80 backdrop-blur-md">
@@ -24,7 +31,7 @@ export default function Nav() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-accent-gold text-xl">🏆</span>
+            <span className="text-accent-gold text-xl">&#127942;</span>
             <span className="font-bold text-white">{ORG_SHORT_NAME}</span>
           </Link>
 
@@ -57,10 +64,35 @@ export default function Nav() {
                 </Link>
               ))}
             </div>
+
+            {/* Member identity */}
+            {member ? (
+              <div className="ml-3 flex items-center gap-2 pl-3 border-l border-white/10">
+                <span className="text-xs text-text-secondary">
+                  Your League: <span className="text-white font-semibold">{member.leagueName}</span>
+                </span>
+                <button
+                  onClick={handleClearIdentity}
+                  className="text-xs text-text-muted hover:text-primary transition-colors"
+                >
+                  Not you?
+                </button>
+              </div>
+            ) : (
+              <Link
+                href="/identify"
+                className="ml-3 pl-3 border-l border-white/10 text-xs text-text-muted hover:text-primary transition-colors"
+              >
+                Find Your League
+              </Link>
+            )}
           </nav>
 
-          {/* Mobile menu — simplified */}
+          {/* Mobile menu */}
           <div className="md:hidden flex items-center gap-2">
+            {member && (
+              <span className="text-xs text-primary font-semibold mr-1">{member.leagueName}</span>
+            )}
             {leagues.map((league) => (
               <Link
                 key={league.sleeperId || league.dbId}
@@ -89,6 +121,19 @@ export default function Nav() {
               {label}
             </Link>
           ))}
+          {!member && (
+            <Link href="/identify" className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium text-primary">
+              Identify
+            </Link>
+          )}
+          {member && (
+            <button
+              onClick={handleClearIdentity}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium text-text-muted"
+            >
+              Not you?
+            </button>
+          )}
         </nav>
       </div>
     </header>

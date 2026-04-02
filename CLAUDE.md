@@ -22,17 +22,25 @@ A fantasy football league management platform for a friend group. Cross-league p
 src/
   app/                        # Next.js App Router
     (public pages)/           # /, /rankings, /bracket, /transactions, /history, /recaps
-    admin/                    # Commissioner dashboard pages
+    admin/                    # Commissioner Command Center (dashboard)
+    admin/situation-room/     # Draft monitoring hub (all leagues)
+    identify/                 # Member identity lookup page
     leagues/[leagueId]/       # League standings + matchups (with Realtime live scores)
-    draft/[boardId]/          # Live draft board (Realtime)
+    draft/[boardId]/          # Live draft board (Realtime + Sleeper sync)
     register/[token]/         # Public cohort registration page
     api/
       admin/                  # Protected admin endpoints (requireAuth)
       admin/cohorts/          # Cohort CRUD + registration management
+      admin/dashboard/        # Aggregated dashboard data for Command Center
+      admin/draft/sync/       # One-shot draft sync from Sleeper (commissioner)
+      admin/season/advance/   # Season phase advancement
+      admin/situation-room/   # Situation Room data (all drafts)
       admin/backfill-identity/# Backfill member_season_id on historical rows
       admin/recaps/           # Recap generation + publishing
       cron/sync/              # Daily Sleeper data sync (parallel + batch)
+      cron/draft-sync/        # Every-2-min Sleeper draft pick sync
       draft/                  # Public draft board data
+      identify/               # Member email lookup + cookie set/clear
       rankings/               # Public power rankings
       history/                # Public season archives
       recap/                  # Recap data API (Bearer token auth)
@@ -41,16 +49,18 @@ src/
     loading.tsx               # Global loading skeleton
     not-found.tsx             # 404 page ("That's what she said")
   components/
-    layout/                   # Nav, Footer
+    layout/                   # Nav (with member identity), Footer
+    admin/                    # InviteEmailGenerator, CohortDetailPanel
     leagues/                  # StandingsTable, MatchupCard, WeekSelector, LiveScoreIndicator
     bracket/                  # BracketView
     rankings/                 # PowerRankingsTable
     transactions/             # TransactionsFeed, TransactionCard
     ui/                       # OffSeasonBanner
-    providers/                # ConfigProvider (React Context)
+    providers/                # ConfigProvider (React Context + member identity)
   hooks/
     useLiveScores.ts          # Supabase Realtime + polling for matchup pages
   lib/
+    member-scope.ts           # Server-side member identity from cookie
     supabase/client.ts        # Browser Supabase client (anon key, for Realtime)
     supabase/server.ts        # Server Supabase clients (anon + service role)
     sleeper/api.ts            # Sleeper API client (all endpoints)
@@ -181,10 +191,26 @@ All tables have RLS enabled. Anon SELECT policies on: `draft_picks`, `players_no
 | GET | `/api/recap/season-summary` | End-of-season stats + awards |
 | GET | `/api/recap/member-profile` | Career stats for a member |
 
+### V2 Admin Routes
+| Method | Route | Purpose |
+|--------|-------|---------|
+| GET | `/api/admin/dashboard` | Aggregated dashboard data for Command Center |
+| POST | `/api/admin/season/advance` | Advance season to next phase |
+| POST | `/api/admin/draft/sync` | One-shot draft pick sync from Sleeper |
+| POST | `/api/admin/draft/board` (action: link-sleeper) | Link draft board to Sleeper draft ID |
+| GET | `/api/admin/situation-room` | All draft board states for Situation Room |
+
+### Member Identity (no admin auth)
+| Method | Route | Purpose |
+|--------|-------|---------|
+| POST | `/api/identify` | Email lookup + set member_id cookie |
+| DELETE | `/api/identify` | Clear member_id cookie |
+
 ### Cron (require `Authorization: Bearer CRON_SECRET`)
 | Method | Route | Purpose |
 |--------|-------|---------|
-| GET | `/api/cron/sync` | Daily Sleeper sync (parallel fetches, batch upserts) |
+| GET | `/api/cron/sync` | Daily Sleeper data sync (parallel fetches, batch upserts) |
+| GET | `/api/cron/draft-sync` | Every-2-min Sleeper draft pick sync |
 
 ## External Integrations
 
@@ -210,7 +236,7 @@ RESEND_API_KEY=                   # Optional email service
 ## Deployment
 
 - **Vercel** with auto-deploy from git
-- **Cron:** `/api/cron/sync` runs daily at 00:00 UTC (configured in `vercel.json`)
+- **Cron:** `/api/cron/sync` runs daily at 00:00 UTC; `/api/cron/draft-sync` runs every 2 minutes (configured in `vercel.json`)
 - **ISR:** Public ranking endpoint revalidates every 5 minutes
 - **Security headers:** HSTS, X-Frame-Options DENY, X-Content-Type-Options nosniff (in `next.config.js`)
 
@@ -234,3 +260,20 @@ RESEND_API_KEY=                   # Optional email service
 **Add a new admin route:** Create route file in `src/app/api/admin/`, call `await requireAuth()` at the top, use `createServiceClient()` for DB access. Add Zod validation on inputs.
 
 **Add a new public page:** Create page in `src/app/`, fetch data server-side using `createServiceClient()`, handle off-season fallback. Add `loading.tsx` and `error.tsx` in the same directory.
+
+## V2 Systems
+
+### Commissioner Command Center (`/admin`)
+Replaces the simple link grid with a full dashboard: season phase pipeline, cohort cards with registration stats, activity feed, league health grid, setup wizard shortcuts, and quick action buttons. Data from `GET /api/admin/dashboard`.
+
+### Member Identity Layer (`/identify`)
+Members enter email once, get a 30-day `member_id` httpOnly cookie. The root layout reads this cookie via `getMemberScope()` and passes it through `ConfigProvider`. Nav shows "Your League: [name]" and "Not you?" link. API: `POST /api/identify` (set), `DELETE /api/identify` (clear).
+
+### Sleeper Draft Sync
+Replaces manual pick entry. `draft_boards.sleeper_draft_id` links a board to Sleeper. Cron at `/api/cron/draft-sync` runs every 2 minutes, fetches `GET /v1/draft/<id>/picks`, upserts into `draft_picks` with `sleeper_pick_id` dedup key. Commissioner can trigger one-shot sync via `/api/admin/draft/sync`. Migration 014 adds `sleeper_draft_id`, `sleeper_pick_id`, `last_synced_at`.
+
+### Situation Room (`/admin/situation-room`)
+Aggregates all active draft states: circular progress indicators, on-the-clock display, recent picks per league, and a unified activity feed. Subscribes to Supabase Realtime on active `draft_picks`. Auto-refreshes every 15 seconds.
+
+### Cohort Invite Workflow
+Season setup wizard redesigned to 6 steps: Cohorts & Invites, Review Registrations, Season & Leagues, Draft Order, Sleeper Linking, Link Sleeper Drafts. New components: `InviteEmailGenerator` (generates copy-paste email body), `CohortDetailPanel` (expandable registration list with stats). Copy-to-clipboard for invite links.

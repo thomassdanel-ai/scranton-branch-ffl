@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 
 type Season = {
@@ -25,6 +25,8 @@ type DraftBoard = {
   current_pick: number;
   seconds_per_pick: number;
   is_mock: boolean;
+  sleeper_draft_id: string | null;
+  last_synced_at: string | null;
   started_at: string | null;
   completed_at: string | null;
 };
@@ -55,8 +57,6 @@ type MemberSeason = {
   draft_position: number | null;
 };
 
-const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
-
 export default function DraftPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,15 +73,8 @@ export default function DraftPage() {
   const [boardMembers, setBoardMembers] = useState<Member[]>([]);
   const [boardMemberSeasons, setBoardMemberSeasons] = useState<MemberSeason[]>([]);
 
-  // Pick input
-  const [playerName, setPlayerName] = useState('');
-  const [position, setPosition] = useState('QB');
   const [submitting, setSubmitting] = useState(false);
-
-  // Timer
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const flash = useCallback((msg: string, type: 'error' | 'success') => {
     if (type === 'error') { setError(msg); setSuccess(''); }
@@ -115,59 +108,18 @@ export default function DraftPage() {
     setPicks(data.picks || []);
     setBoardMembers(data.members || []);
     setBoardMemberSeasons(data.memberSeasons || []);
-
-    // Start timer if drafting
-    if (data.board.status === 'drafting') {
-      resetTimer(data.board.seconds_per_pick);
-    }
   }, [flash]);
 
   useEffect(() => {
     fetchOverview();
   }, [fetchOverview]);
 
-  // Timer logic
-  function resetTimer(seconds: number) {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setTimerSeconds(seconds);
-    setTimerRunning(true);
-    timerRef.current = setInterval(() => {
-      setTimerSeconds((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          setTimerRunning(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }
-
-  function pauseTimer() {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setTimerRunning(false);
-  }
-
-  function resumeTimer() {
-    if (timerSeconds <= 0) return;
-    setTimerRunning(true);
-    timerRef.current = setInterval(() => {
-      setTimerSeconds((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          setTimerRunning(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }
-
+  // Auto-refresh board every 10s when viewing a board linked to Sleeper
   useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
+    if (!activeBoard?.sleeper_draft_id) return;
+    const interval = setInterval(() => fetchBoard(activeBoard.id), 10000);
+    return () => clearInterval(interval);
+  }, [activeBoard, fetchBoard]);
 
   async function boardAction(boardId: string, action: string) {
     setSubmitting(true);
@@ -186,45 +138,21 @@ export default function DraftPage() {
     await fetchBoard(boardId);
   }
 
-  async function submitPick() {
-    if (!activeBoard || !playerName.trim()) return;
-
-    const currentPick = picks.find(
-      (p) => p.round === activeBoard.current_round && p.pick_in_round === activeBoard.current_pick
-    );
-    if (!currentPick) {
-      flash('Cannot find current pick slot', 'error');
-      return;
-    }
-
-    setSubmitting(true);
-    const res = await fetch('/api/admin/draft/board', {
+  async function triggerSync(boardId: string) {
+    setSyncing(true);
+    const res = await fetch('/api/admin/draft/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        boardId: activeBoard.id,
-        action: 'pick',
-        pickId: currentPick.id,
-        playerName: playerName.trim(),
-        position,
-      }),
+      body: JSON.stringify({ boardId }),
     });
     const data = await res.json();
-    setSubmitting(false);
-
+    setSyncing(false);
     if (!res.ok) {
-      flash(data.error || 'Failed to submit pick', 'error');
+      flash(data.error || 'Sync failed', 'error');
       return;
     }
-
-    setPlayerName('');
-    setPosition('QB');
-
-    if (data.completed) {
-      flash('Draft complete!', 'success');
-    }
-
-    await fetchBoard(activeBoard.id);
+    flash(`Synced ${data.synced} picks${data.completed ? ' — Draft complete!' : ''}`, 'success');
+    await fetchBoard(boardId);
   }
 
   async function createMockDraft(leagueId: string, seasonId: string) {
@@ -244,11 +172,6 @@ export default function DraftPage() {
     await fetchOverview();
   }
 
-  async function resetMockDraft(boardId: string) {
-    await boardAction(boardId, 'reset-mock');
-    await fetchBoard(boardId);
-  }
-
   function getMemberName(memberSeasonId: string): string {
     const ms = boardMemberSeasons.find((m) => m.id === memberSeasonId);
     if (!ms) return 'Unknown';
@@ -257,22 +180,16 @@ export default function DraftPage() {
     return member.display_name || member.full_name;
   }
 
-  function getMemberNameFromOverview(memberSeasonId: string): string {
-    const ms = memberSeasons.find((m) => m.id === memberSeasonId);
-    if (!ms) return 'Unknown';
-    const member = members.find((m) => m.id === ms.member_id);
-    if (!member) return 'Unknown';
-    return member.display_name || member.full_name;
-  }
-
   function getLeagueName(leagueId: string): string {
     return leagues.find((l) => l.id === leagueId)?.name || 'Unknown';
   }
 
-  function formatTimer(seconds: number): string {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+  function timeAgo(iso: string | null): string {
+    if (!iso) return 'Never';
+    const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    return `${Math.floor(seconds / 3600)}h ago`;
   }
 
   const posColor: Record<string, string> = {
@@ -309,7 +226,6 @@ export default function DraftPage() {
 
   // Board detail view
   if (activeBoard) {
-    const rosterCount = boardMemberSeasons.length;
     const currentPickObj = picks.find(
       (p) => p.round === activeBoard.current_round && p.pick_in_round === activeBoard.current_pick
     );
@@ -320,8 +236,8 @@ export default function DraftPage() {
     const isPaused = activeBoard.status === 'paused';
     const isComplete = activeBoard.status === 'completed';
     const isPending = activeBoard.status === 'pending';
+    const isSleeperLinked = !!activeBoard.sleeper_draft_id;
 
-    // Build grid: rows = rounds, cols = draft positions
     const sortedMS = [...boardMemberSeasons].sort((a, b) => (a.draft_position || 0) - (b.draft_position || 0));
 
     return (
@@ -339,6 +255,7 @@ export default function DraftPage() {
             <h1 className="text-xl font-extrabold text-white">
               {getLeagueName(activeBoard.league_id)} Draft
               {activeBoard.is_mock && <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded-full">MOCK</span>}
+              {isSleeperLinked && <span className="ml-2 text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">SLEEPER SYNC</span>}
             </h1>
             <p className="text-text-muted text-sm">
               Season {season.season_number} &middot; {madeCount}/{totalPicks} picks
@@ -346,20 +263,34 @@ export default function DraftPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {isPending && (
+            {isSleeperLinked && (
+              <>
+                <span className="text-text-muted text-xs">
+                  Synced: {timeAgo(activeBoard.last_synced_at)}
+                </span>
+                <button
+                  onClick={() => triggerSync(activeBoard.id)}
+                  disabled={syncing}
+                  className="px-3 py-2 bg-blue-500/20 text-blue-300 rounded-lg text-sm font-semibold hover:bg-blue-500/30 transition-colors disabled:opacity-50"
+                >
+                  {syncing ? 'Syncing...' : 'Sync Now'}
+                </button>
+              </>
+            )}
+            {!isSleeperLinked && isPending && (
               <button onClick={() => boardAction(activeBoard.id, 'start')} disabled={submitting}
                 className="px-4 py-2 bg-accent-green text-white rounded-lg text-sm font-semibold hover:bg-green-600 transition-colors disabled:opacity-50">
                 Start Draft
               </button>
             )}
-            {isDrafting && (
-              <button onClick={() => { boardAction(activeBoard.id, 'pause'); pauseTimer(); }} disabled={submitting}
+            {!isSleeperLinked && isDrafting && (
+              <button onClick={() => boardAction(activeBoard.id, 'pause')} disabled={submitting}
                 className="px-3 py-2 bg-yellow-500/20 text-yellow-300 rounded-lg text-sm font-semibold hover:bg-yellow-500/30 transition-colors disabled:opacity-50">
                 Pause
               </button>
             )}
-            {isPaused && (
-              <button onClick={() => { boardAction(activeBoard.id, 'resume'); resumeTimer(); }} disabled={submitting}
+            {!isSleeperLinked && isPaused && (
+              <button onClick={() => boardAction(activeBoard.id, 'resume')} disabled={submitting}
                 className="px-3 py-2 bg-accent-green/20 text-accent-green rounded-lg text-sm font-semibold hover:bg-accent-green/30 transition-colors disabled:opacity-50">
                 Resume
               </button>
@@ -371,7 +302,7 @@ export default function DraftPage() {
               </button>
             )}
             {activeBoard.is_mock && (isPending || isComplete) && (
-              <button onClick={() => resetMockDraft(activeBoard.id)} disabled={submitting}
+              <button onClick={async () => { await boardAction(activeBoard.id, 'reset-mock'); await fetchBoard(activeBoard.id); }} disabled={submitting}
                 className="px-3 py-2 bg-purple-500/20 text-purple-300 rounded-lg text-sm font-semibold hover:bg-purple-500/30 transition-colors disabled:opacity-50">
                 Reset Mock
               </button>
@@ -379,7 +310,7 @@ export default function DraftPage() {
           </div>
         </div>
 
-        {/* Current pick + timer */}
+        {/* Current pick info (when drafting and not yet complete) */}
         {(isDrafting || isPaused) && currentPickObj && (
           <div className="glass-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -390,47 +321,13 @@ export default function DraftPage() {
                   Round {activeBoard.current_round}, Pick {activeBoard.current_pick} &middot; Overall #{currentPickObj.overall_pick}
                 </p>
               </div>
-              <div className="text-center">
-                <p className={`text-4xl font-mono font-bold ${timerSeconds <= 10 ? 'text-red-400' : timerSeconds <= 30 ? 'text-yellow-300' : 'text-white'}`}>
-                  {formatTimer(timerSeconds)}
-                </p>
-                {isPaused && <p className="text-yellow-300 text-xs mt-1">PAUSED</p>}
-              </div>
+              {isSleeperLinked && (
+                <div className="text-right">
+                  <p className="text-text-muted text-xs">Picks sync automatically from Sleeper</p>
+                  <p className="text-text-muted text-xs">every 2 minutes via cron</p>
+                </div>
+              )}
             </div>
-
-            {/* Pick input */}
-            {isDrafting && (
-              <div className="mt-4 flex flex-wrap items-end gap-3">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="text-text-muted text-xs block mb-1">Player Name</label>
-                  <input
-                    type="text"
-                    value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    placeholder="e.g. Patrick Mahomes"
-                    className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary"
-                    onKeyDown={(e) => { if (e.key === 'Enter') submitPick(); }}
-                    autoFocus
-                  />
-                </div>
-                <div className="w-24">
-                  <label className="text-text-muted text-xs block mb-1">Position</label>
-                  <select
-                    value={position}
-                    onChange={(e) => setPosition(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-none focus:border-primary"
-                  >
-                    {POSITIONS.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
-                </div>
-                <button onClick={submitPick} disabled={submitting || !playerName.trim()}
-                  className="px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50">
-                  Draft
-                </button>
-              </div>
-            )}
           </div>
         )}
 
@@ -457,7 +354,6 @@ export default function DraftPage() {
                   <tr key={round} className="border-b border-white/5">
                     <td className="text-text-muted py-2 px-2 font-mono text-xs">{round}</td>
                     {sortedMS.map((ms) => {
-                      // Find the pick for this cell
                       const colIdx = colOrder.findIndex((c) => c.id === ms.id);
                       const pick = picks.find((p) => p.round === round && p.pick_in_round === colIdx + 1);
                       const isCurrent = pick && activeBoard.current_round === round && activeBoard.current_pick === colIdx + 1 && (isDrafting || isPaused);
@@ -539,13 +435,23 @@ export default function DraftPage() {
               {/* Real Draft */}
               {realBoard ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[realBoard.status] || 'bg-white/10 text-white'}`}>
                       {realBoard.status.toUpperCase()}
                     </span>
+                    {realBoard.sleeper_draft_id && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">
+                        SLEEPER
+                      </span>
+                    )}
                     {realBoard.status !== 'pending' && (
                       <span className="text-text-muted text-xs">
                         R{realBoard.current_round} P{realBoard.current_pick}
+                      </span>
+                    )}
+                    {realBoard.last_synced_at && (
+                      <span className="text-text-muted text-xs">
+                        Synced {timeAgo(realBoard.last_synced_at)}
                       </span>
                     )}
                   </div>
@@ -553,7 +459,7 @@ export default function DraftPage() {
                     onClick={() => fetchBoard(realBoard.id)}
                     className="w-full px-4 py-2 bg-primary/20 text-primary rounded-lg text-sm font-semibold hover:bg-primary/30 transition-colors"
                   >
-                    {realBoard.status === 'pending' ? 'Open Draft Board' : realBoard.status === 'completed' ? 'View Results' : 'Continue Draft'}
+                    {realBoard.status === 'pending' ? 'Open Draft Board' : realBoard.status === 'completed' ? 'View Results' : 'View Draft'}
                   </button>
                 </div>
               ) : (

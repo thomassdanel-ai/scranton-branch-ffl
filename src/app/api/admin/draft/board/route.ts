@@ -284,6 +284,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, status: 'pending' });
   }
 
+  if (action === 'link-sleeper') {
+    const { sleeperDraftId } = body as { sleeperDraftId: string };
+    if (!sleeperDraftId) {
+      return NextResponse.json({ error: 'Missing sleeperDraftId' }, { status: 400 });
+    }
+
+    const { error: linkErr } = await supabase
+      .from('draft_boards')
+      .update({ sleeper_draft_id: sleeperDraftId })
+      .eq('id', boardId);
+
+    if (linkErr) {
+      return NextResponse.json({ error: 'Failed to link Sleeper draft' }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, sleeperDraftId });
+  }
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (err) {
     if (err instanceof AuthError) {

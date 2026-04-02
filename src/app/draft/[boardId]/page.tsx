@@ -15,6 +15,8 @@ type DraftBoard = {
   current_pick: number;
   seconds_per_pick: number;
   is_mock: boolean;
+  sleeper_draft_id: string | null;
+  last_synced_at: string | null;
   started_at: string | null;
   completed_at: string | null;
 };
@@ -81,7 +83,7 @@ export default function PublicDraftBoard() {
     setMemberSeasons(data.memberSeasons || []);
     setLoading(false);
 
-    if (data.board?.status === 'drafting') {
+    if (data.board?.status === 'drafting' && !data.board?.sleeper_draft_id) {
       resetTimer(data.board.seconds_per_pick);
     }
   }, [boardId]);
@@ -90,7 +92,7 @@ export default function PublicDraftBoard() {
     fetchBoard();
   }, [fetchBoard]);
 
-  // Supabase Realtime: subscribe to draft_picks changes
+  // Supabase Realtime: subscribe to draft_picks changes (both INSERT and UPDATE for Sleeper sync)
   useEffect(() => {
     if (!boardId) return;
 
@@ -100,7 +102,7 @@ export default function PublicDraftBoard() {
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'draft_picks',
           filter: `draft_board_id=eq.${boardId}`,
@@ -108,13 +110,16 @@ export default function PublicDraftBoard() {
         (payload) => {
           const updated = payload.new as DraftPick;
           if (updated.player_name) {
-            setPicks((prev) =>
-              prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p))
-            );
+            setPicks((prev) => {
+              const exists = prev.find((p) => p.id === updated.id);
+              if (exists) {
+                return prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p));
+              }
+              return [...prev, updated].sort((a, b) => a.overall_pick - b.overall_pick);
+            });
             setLastPick(updated.id);
             setTimeout(() => setLastPick(null), 3000);
           }
-          // Refetch board to get updated current_round/current_pick
           fetchBoard();
         }
       )
@@ -125,9 +130,9 @@ export default function PublicDraftBoard() {
     };
   }, [boardId, fetchBoard]);
 
-  // Also poll board status every 5s as fallback (for status changes like pause/complete)
+  // Poll board status every 10s as fallback
   useEffect(() => {
-    const interval = setInterval(fetchBoard, 5000);
+    const interval = setInterval(fetchBoard, 10000);
     return () => clearInterval(interval);
   }, [fetchBoard]);
 
@@ -165,6 +170,14 @@ export default function PublicDraftBoard() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
+  function timeAgo(iso: string | null): string {
+    if (!iso) return '';
+    const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    return `${Math.floor(seconds / 3600)}h ago`;
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[80vh]">
@@ -193,6 +206,7 @@ export default function PublicDraftBoard() {
   const isPaused = board.status === 'paused';
   const isComplete = board.status === 'completed';
   const isPending = board.status === 'pending';
+  const isSleeperLinked = !!board.sleeper_draft_id;
 
   const currentPickObj = picks.find(
     (p) => p.round === board.current_round && p.pick_in_round === board.current_pick
@@ -220,11 +234,16 @@ export default function PublicDraftBoard() {
             ) : (
               <span className="text-accent-green">Live</span>
             )}
+            {isSleeperLinked && board.last_synced_at && (
+              <span className="ml-2 text-text-muted">
+                &middot; Last synced {timeAgo(board.last_synced_at)}
+              </span>
+            )}
           </p>
         </div>
 
-        {/* Timer */}
-        {(isDrafting || isPaused) && (
+        {/* Timer (only for non-Sleeper drafts) */}
+        {!isSleeperLinked && (isDrafting || isPaused) && (
           <div className="text-center">
             <p className={`text-4xl font-mono font-bold ${timerSeconds <= 10 ? 'text-red-400 animate-pulse' : timerSeconds <= 30 ? 'text-yellow-300' : 'text-white'}`}>
               {formatTimer(timerSeconds)}
@@ -250,7 +269,11 @@ export default function PublicDraftBoard() {
         <div className="glass-card p-8 text-center">
           <div className="w-12 h-12 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
           <h2 className="text-xl font-bold text-white mb-2">Draft Starting Soon</h2>
-          <p className="text-text-muted">Waiting for the commissioner to start the draft. This page will update automatically.</p>
+          <p className="text-text-muted">
+            {isSleeperLinked
+              ? 'Waiting for the first pick on Sleeper. Picks will sync automatically.'
+              : 'Waiting for the commissioner to start the draft. This page will update automatically.'}
+          </p>
         </div>
       )}
 

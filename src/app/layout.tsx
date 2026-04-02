@@ -3,7 +3,9 @@ import '@/styles/globals.css';
 import Nav from '@/components/layout/Nav';
 import Footer from '@/components/layout/Footer';
 import { ConfigProvider } from '@/components/providers/ConfigProvider';
+import type { MemberIdentity } from '@/components/providers/ConfigProvider';
 import { getSeasonLeagues, getActiveSeasonYear } from '@/lib/config';
+import { getMemberScope } from '@/lib/member-scope';
 import { ORG_NAME, ORG_SHORT_NAME } from '@/config/constants';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://scranton-branch-ffl.vercel.app';
@@ -42,15 +44,25 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [leagues, seasonYear] = await Promise.all([
+  const [leagues, seasonYear, memberScope] = await Promise.all([
     getSeasonLeagues(),
     getActiveSeasonYear(),
+    getMemberScope().catch(() => null),
   ]);
+
+  const member: MemberIdentity = memberScope
+    ? {
+        memberId: memberScope.memberId,
+        memberName: memberScope.memberName,
+        leagueId: memberScope.leagueId,
+        leagueName: memberScope.leagueName,
+      }
+    : null;
 
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen flex flex-col bg-bg-primary text-text-primary antialiased">
-        <ConfigProvider leagues={leagues} seasonYear={seasonYear}>
+        <ConfigProvider leagues={leagues} seasonYear={seasonYear} member={member}>
           <Nav />
           <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-8">
             {children}
