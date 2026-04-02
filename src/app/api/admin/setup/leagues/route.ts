@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
     .eq('id', seasonId)
     .single();
 
-  if (!season || season.status !== 'setup') {
-    return NextResponse.json({ error: 'Season is not in setup phase' }, { status: 400 });
+  if (!season || !['setup', 'registering', 'confirming'].includes(season.status)) {
+    return NextResponse.json({ error: 'Season is not in a setup phase' }, { status: 400 });
   }
 
   const { data: leagues } = await supabase

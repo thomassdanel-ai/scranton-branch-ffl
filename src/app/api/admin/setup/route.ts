@@ -111,16 +111,17 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient();
   const orgId = await getOrgId(supabase);
 
-  // Check no season already in setup/pre_draft/drafting/active
+  // Check no season already in setup/registering/confirming/pre_draft/drafting/active
   const { data: existing } = await supabase
     .from('seasons')
-    .select('id, status')
+    .select('id, season_number, year, status')
     .eq('org_id', orgId)
-    .in('status', ['setup', 'pre_draft', 'drafting', 'active']);
+    .in('status', ['setup', 'registering', 'confirming', 'pre_draft', 'drafting', 'active']);
 
   if (existing && existing.length > 0) {
+    const s = existing[0];
     return NextResponse.json(
-      { error: 'A season is already in progress. Complete or archive it first.' },
+      { error: `Season ${s.season_number} (${s.year}) is already in progress with status '${s.status}'. Archive or complete it before creating a new season.` },
       { status: 409 }
     );
   }
