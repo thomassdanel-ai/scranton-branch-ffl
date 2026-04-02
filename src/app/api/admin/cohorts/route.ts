@@ -81,6 +81,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Assign cohort to creating user (unless they're a super_admin)
+    if (user.role !== 'super_admin') {
+      const { error: assignmentError } = await supabase
+        .from('admin_cohort_assignments')
+        .insert({
+          admin_user_id: user.id,
+          cohort_id: data.id,
+        });
+
+      if (assignmentError) {
+        return NextResponse.json({ error: assignmentError.message }, { status: 500 });
+      }
+    }
+
     return NextResponse.json({ cohort: data }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) {

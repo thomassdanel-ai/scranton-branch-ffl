@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server';
+import crypto from 'crypto';
 
 /**
  * Validate Bearer token for recap API endpoints.
+ * Uses timing-safe comparison to prevent timing attacks.
  * Returns true if authorized.
  */
 export function isRecapAuthorized(req: NextRequest): boolean {
@@ -11,5 +13,17 @@ export function isRecapAuthorized(req: NextRequest): boolean {
   const authHeader = req.headers.get('authorization');
   if (!authHeader) return false;
 
-  return authHeader === `Bearer ${key}`;
+  const expected = `Bearer ${key}`;
+
+  // Check lengths match first (timingSafeEqual requires equal length buffers)
+  if (Buffer.byteLength(authHeader) !== Buffer.byteLength(expected)) {
+    return false;
+  }
+
+  // Use timing-safe comparison to prevent timing attacks
+  try {
+    return crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+  } catch {
+    return false;
+  }
 }

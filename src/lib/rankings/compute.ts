@@ -1,12 +1,22 @@
-import { getLeagueTeams } from '@/lib/sleeper/league-data';
-import { getMatchups, getNFLState } from '@/lib/sleeper/api';
-import { getSeasonLeagues, getSeasonStatus } from '@/lib/config';
+import { getSeasonLeagues, getSeasonStatus, getActiveSeasonId } from '@/lib/config';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { LeagueInfo } from '@/lib/config';
-import type { LeagueTeam } from '@/lib/sleeper/league-data';
+
+type TeamRecord = {
+  rosterId: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  streak: string | null;
+  displayName: string;
+  teamName?: string;
+  avatar?: string;
+};
 
 export type RankedTeam = {
-  team: LeagueTeam;
+  team: TeamRecord;
   leagueId: string;
   leagueName: string;
   leagueColor: string;
@@ -55,7 +65,10 @@ export async function computePowerRankings(): Promise<RankedTeam[]> {
     if (cached.length > 0) return cached;
   }
 
-  const leagues = await getSeasonLeagues();
+  const seasonId = await getActiveSeasonId();
+  if (!seasonId) return [];
+
+  const leagues = await getSeasonLeagues(seasonId);
 
   // Build a lookup from sleeperId to league info
   const leagueLookup: Record<string, LeagueInfo> = {};
@@ -63,20 +76,13 @@ export async function computePowerRankings(): Promise<RankedTeam[]> {
     leagueLookup[l.sleeperId] = l;
   }
 
-  // Gather all teams from all leagues
-  const allTeams: { team: LeagueTeam; leagueId: string }[] = [];
-
-  for (const league of leagues) {
-    const teams = await getLeagueTeams(league.sleeperId);
-    for (const team of teams) {
-      allTeams.push({ team, leagueId: league.sleeperId });
-    }
-  }
+  // Get all teams from weekly_results for this season
+  const allTeams = await getAllTeamsFromDatabase(seasonId, leagues);
 
   if (!allTeams.length) return [];
 
   // Compute expected wins for each team across all leagues
-  const expectedWinsMap = await computeExpectedWins();
+  const expectedWinsMap = await computeExpectedWins(seasonId);
 
   // Sort by PF to get percentile ranks
   const sortedByPF = [...allTeams].sort((a, b) => b.team.pointsFor - a.team.pointsFor);
@@ -139,38 +145,94 @@ export async function computePowerRankings(): Promise<RankedTeam[]> {
 }
 
 /**
- * Compute expected wins for every team.
+ * Get all teams from weekly_results for the current season.
+ * Uses the latest week per league to get current standings.
+ */
+async function getAllTeamsFromDatabase(
+  seasonId: string,
+  leagues: LeagueInfo[],
+): Promise<{ team: TeamRecord; leagueId: string }[]> {
+  const supabase = createServiceClient();
+
+  // Get all weekly_results for this season
+  const { data: allResults } = await supabase
+    .from('weekly_results')
+    .select('league_id, roster_id, week, season_wins, season_losses, season_ties, season_points_for, season_points_against, streak')
+    .eq('season_id', seasonId);
+
+  if (!allResults || allResults.length === 0) return [];
+
+  // Group by league_id and roster_id, take the latest week for each
+  const teamLatestWeek: Record<string, typeof allResults[0]> = {};
+  for (const result of allResults) {
+    const key = `${result.league_id}-${result.roster_id}`;
+    const existing = teamLatestWeek[key];
+    if (!existing || result.week > existing.week) {
+      teamLatestWeek[key] = result;
+    }
+  }
+
+  // Convert to the format expected by computePowerRankings
+  const allTeams: { team: TeamRecord; leagueId: string }[] = [];
+
+  for (const league of leagues) {
+    // Get unique roster IDs for this league from the latest week
+    const leagueTeams = Object.values(teamLatestWeek).filter((r) => r.league_id === league.sleeperId);
+
+    for (const teamData of leagueTeams) {
+      allTeams.push({
+        team: {
+          rosterId: teamData.roster_id,
+          wins: teamData.season_wins || 0,
+          losses: teamData.season_losses || 0,
+          ties: teamData.season_ties || 0,
+          pointsFor: parseFloat(String(teamData.season_points_for)) || 0,
+          pointsAgainst: parseFloat(String(teamData.season_points_against)) || 0,
+          streak: teamData.streak,
+          displayName: `Team ${teamData.roster_id}`,
+        },
+        leagueId: league.sleeperId,
+      });
+    }
+  }
+
+  return allTeams;
+}
+
+/**
+ * Compute expected wins for every team using data from weekly_results.
  * For each week, compare each team's score against every other team's score
  * across ALL leagues. Expected wins = total hypothetical wins / total hypothetical games.
  */
-async function computeExpectedWins(): Promise<Map<string, number>> {
-  const leagues = await getSeasonLeagues();
-  const nflState = await getNFLState();
-  const maxWeek = nflState.week > 0
-    ? nflState.week
-    : await getMaxWeekFromRosters(leagues);
+async function computeExpectedWins(seasonId: string): Promise<Map<string, number>> {
+  const supabase = createServiceClient();
 
-  // Collect all weekly scores: week -> array of { leagueId, rosterId, points }
+  // Get all weekly results for the season
+  const { data: allResults } = await supabase
+    .from('weekly_results')
+    .select('league_id, roster_id, week, points')
+    .eq('season_id', seasonId)
+    .order('week', { ascending: true });
+
+  if (!allResults || allResults.length === 0) {
+    return new Map();
+  }
+
+  // Find max week
+  const maxWeek = Math.max(...allResults.map((r) => r.week || 0));
+
+  // Collect weekly scores: week -> array of { leagueId, rosterId, points }
   const weeklyScores: Array<{ leagueId: string; rosterId: number; points: number }>[] = [];
 
   for (let week = 1; week <= maxWeek; week++) {
-    const weekScores: typeof weeklyScores[0] = [];
-    for (const league of leagues) {
-      try {
-        const matchups = await getMatchups(league.sleeperId, week);
-        for (const m of matchups) {
-          if (m.points != null && m.points > 0) {
-            weekScores.push({
-              leagueId: league.sleeperId,
-              rosterId: m.roster_id,
-              points: m.points,
-            });
-          }
-        }
-      } catch {
-        // Skip weeks with no data
-      }
-    }
+    const weekScores = allResults
+      .filter((r) => r.week === week && r.points != null && r.points > 0)
+      .map((r) => ({
+        leagueId: r.league_id,
+        rosterId: r.roster_id,
+        points: r.points,
+      }));
+
     if (weekScores.length > 0) {
       weeklyScores.push(weekScores);
     }
@@ -196,7 +258,7 @@ async function computeExpectedWins(): Promise<Map<string, number>> {
     }
   }
 
-  // Convert to expected win totals (scaled to actual number of games played)
+  // Convert to expected win totals (scaled to actual number of weeks played)
   const expectedWins = new Map<string, number>();
   for (const key of Object.keys(winsRecord)) {
     const totalWins = winsRecord[key];
@@ -206,21 +268,6 @@ async function computeExpectedWins(): Promise<Map<string, number>> {
   }
 
   return expectedWins;
-}
-
-async function getMaxWeekFromRosters(leagues: LeagueInfo[]): Promise<number> {
-  for (const league of leagues) {
-    try {
-      const { getLeagueRosters } = await import('@/lib/sleeper/api');
-      const rosters = await getLeagueRosters(league.sleeperId);
-      if (rosters.length) {
-        return Math.max(...rosters.map((r) => r.settings.wins + r.settings.losses + r.settings.ties));
-      }
-    } catch {
-      continue;
-    }
-  }
-  return 1;
 }
 
 function parseStreakScore(streak: string | null): number {

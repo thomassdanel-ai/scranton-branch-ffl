@@ -60,7 +60,7 @@ export async function POST(
   // Validate invite token
   const { data: cohort } = await supabase
     .from('cohorts')
-    .select('id, org_id, season_id, status')
+    .select('id, org_id, season_id, status, settings')
     .eq('invite_token', params.token)
     .single();
 
@@ -72,36 +72,26 @@ export async function POST(
     return NextResponse.json({ error: 'Registration is closed' }, { status: 410 });
   }
 
-  // Find or create member
+  // Upsert member (atomically create or get existing)
   const normalizedEmail = email.toLowerCase().trim();
-  const { data: existingMember } = await supabase
+  const { data: member, error: memberErr } = await supabase
     .from('members')
-    .select('id')
-    .eq('org_id', cohort.org_id)
-    .eq('email', normalizedEmail)
-    .single();
-
-  let memberId: string;
-
-  if (existingMember) {
-    memberId = existingMember.id;
-  } else {
-    const { data: newMember, error: memberErr } = await supabase
-      .from('members')
-      .insert({
+    .upsert(
+      {
         org_id: cohort.org_id,
         full_name: fullName.trim(),
         email: normalizedEmail,
         status: 'active',
-      })
-      .select('id')
-      .single();
+      },
+      { onConflict: 'org_id,email', ignoreDuplicates: false }
+    )
+    .select('id')
+    .single();
 
-    if (memberErr || !newMember) {
-      return NextResponse.json({ error: 'Failed to create member record' }, { status: 500 });
-    }
-    memberId = newMember.id;
+  if (memberErr || !member) {
+    return NextResponse.json({ error: 'Failed to create member record' }, { status: 500 });
   }
+  const memberId = member.id;
 
   // Check if already registered for this cohort
   const { data: existing } = await supabase
@@ -119,19 +109,56 @@ export async function POST(
     });
   }
 
-  // Create registration
+  // Check capacity and determine registration status
+  let registrationStatus = 'registered';
+  let waitlistPosition: number | null = null;
+
+  const settings = cohort.settings as { maxCapacity?: number } | null;
+  const maxCapacity = settings?.maxCapacity;
+
+  if (maxCapacity !== undefined && maxCapacity > 0) {
+    // Get current registration count (registered or confirmed only)
+    const { count } = await supabase
+      .from('season_registrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('cohort_id', cohort.id)
+      .in('status', ['registered', 'confirmed']);
+
+    const currentCount = count ?? 0;
+
+    if (currentCount >= maxCapacity) {
+      registrationStatus = 'waitlisted';
+      // Get the next waitlist position
+      const { data: waitlistData } = await supabase
+        .from('season_registrations')
+        .select('waitlist_position')
+        .eq('cohort_id', cohort.id)
+        .eq('status', 'waitlisted')
+        .order('waitlist_position', { ascending: false })
+        .limit(1)
+        .single();
+
+      waitlistPosition = (waitlistData?.waitlist_position ?? 0) + 1;
+    }
+  }
+
+  // Upsert registration (handle race condition on duplicate)
   const { error: regErr } = await supabase
     .from('season_registrations')
-    .insert({
-      cohort_id: cohort.id,
-      member_id: memberId,
-      season_id: cohort.season_id,
-      status: 'registered',
-    });
+    .upsert(
+      {
+        cohort_id: cohort.id,
+        member_id: memberId,
+        season_id: cohort.season_id,
+        status: registrationStatus,
+        waitlist_position: waitlistPosition,
+      },
+      { onConflict: 'cohort_id,member_id', ignoreDuplicates: false }
+    );
 
   if (regErr) {
     return NextResponse.json({ error: 'Registration failed' }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, alreadyRegistered: false }, { status: 201 });
+  return NextResponse.json({ ok: true, alreadyRegistered: false, status: registrationStatus }, { status: 201 });
 }
