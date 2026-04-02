@@ -104,7 +104,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function computeAwards(standings: Record<string, any>, rankings: any[] | null, bracket: any): Record<string, unknown> {
   const awards: Record<string, unknown> = {};
 
