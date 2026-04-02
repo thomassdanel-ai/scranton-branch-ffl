@@ -1,14 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import type { Cohort, Registration, FlashFn } from '../page';
+import type { Season, Cohort, Registration, MemberSeason, FlashFn } from '../page';
 
 type Props = {
+  season: Season | null;
   cohorts: Cohort[];
   registrationsByCohort: Record<string, Registration[]>;
   confirmedMemberCount: number;
+  totalRegisteredCount: number;
+  memberSeasons: MemberSeason[];
   flash: FlashFn;
-  onMutate: () => Promise<void>;
+  onComplete: () => Promise<void>;
   isReview: boolean;
 };
 
@@ -16,11 +19,14 @@ export default function Step3Registrations({
   cohorts,
   registrationsByCohort,
   confirmedMemberCount,
+  totalRegisteredCount,
+  memberSeasons,
   flash,
-  onMutate,
+  onComplete,
   isReview,
 }: Props) {
   const [saving, setSaving] = useState(false);
+  const [loadedRegs, setLoadedRegs] = useState<Record<string, Registration[]>>({});
 
   if (cohorts.length === 0) {
     return (
@@ -29,6 +35,19 @@ export default function Step3Registrations({
         <p className="text-accent-red text-sm mt-2">Complete Step 2 first to create at least one cohort.</p>
       </div>
     );
+  }
+
+  // Merge server-loaded registrations with on-demand loaded ones
+  function getRegs(cohortId: string): Registration[] {
+    return loadedRegs[cohortId] || registrationsByCohort[cohortId] || [];
+  }
+
+  async function loadRegistrations(cohortId: string) {
+    const res = await fetch(`/api/admin/cohorts/${cohortId}/registrations`);
+    if (res.ok) {
+      const data = await res.json();
+      setLoadedRegs((prev) => ({ ...prev, [cohortId]: data.registrations || [] }));
+    }
   }
 
   async function confirmCohortRegistrations(cohortId: string, maxSlots: number) {
@@ -44,7 +63,7 @@ export default function Step3Registrations({
     } else {
       const data = await res.json();
       flash(`${data.confirmed} confirmed, ${data.waitlisted} waitlisted`, 'success');
-      await onMutate();
+      await onComplete();
     }
     setSaving(false);
   }
@@ -62,10 +81,15 @@ export default function Step3Registrations({
     } else {
       const data = await res.json();
       flash(`${data.promoted} member(s) promoted from waitlist`, 'success');
-      await onMutate();
+      await onComplete();
     }
     setSaving(false);
   }
+
+  // Check for late registrations after league lock
+  const lateConfirmed = isReview && memberSeasons.length > 0
+    ? confirmedMemberCount - memberSeasons.length
+    : 0;
 
   return (
     <div className="glass-card p-6 space-y-4">
@@ -78,23 +102,30 @@ export default function Step3Registrations({
         )}
       </div>
 
-      {/* Summary bar */}
+      {/* Summary banner */}
       <div className={`text-sm font-medium px-3 py-2 rounded-lg ${
-        confirmedMemberCount >= 8
+        confirmedMemberCount > 0
           ? 'bg-accent-green/20 text-accent-green'
-          : confirmedMemberCount > 0
+          : totalRegisteredCount > 0
             ? 'bg-yellow-500/20 text-yellow-400'
             : 'bg-bg-tertiary text-text-secondary'
       }`}>
-        {confirmedMemberCount} member{confirmedMemberCount !== 1 ? 's' : ''} confirmed across {cohorts.length} cohort{cohorts.length !== 1 ? 's' : ''}
+        {confirmedMemberCount} confirmed / {totalRegisteredCount} total registered across {cohorts.length} cohort{cohorts.length !== 1 ? 's' : ''}
       </div>
+
+      {lateConfirmed > 0 && (
+        <div className="text-sm px-3 py-2 rounded-lg bg-amber-500/10 text-amber-300">
+          Note: {lateConfirmed} member{lateConfirmed !== 1 ? 's' : ''} confirmed after league assignment was locked. They will need to be manually added to leagues.
+        </div>
+      )}
 
       {/* Per-cohort registration list */}
       {cohorts.map((cohort) => {
-        const regs = registrationsByCohort[cohort.id] || [];
+        const regs = getRegs(cohort.id);
         const maxCap = (cohort.settings?.maxCapacity as number) || 20;
         const registeredCount = regs.filter((r) => r.status === 'registered').length;
         const waitlistedCount = regs.filter((r) => r.status === 'waitlisted').length;
+        const hasLoadedRegs = !!loadedRegs[cohort.id] || !!registrationsByCohort[cohort.id];
 
         return (
           <div key={cohort.id} className="p-4 rounded-lg bg-bg-tertiary/50 space-y-3">
@@ -102,9 +133,19 @@ export default function Step3Registrations({
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cohort.color }} />
                 <span className="text-white font-semibold">{cohort.name}</span>
-                <span className="text-text-muted text-xs">{regs.length} registration{regs.length !== 1 ? 's' : ''}</span>
+                <span className="text-text-muted text-xs">
+                  {cohort.season_registrations?.[0]?.count || 0} registered
+                </span>
               </div>
               <div className="flex items-center gap-2">
+                {!hasLoadedRegs && (
+                  <button
+                    onClick={() => loadRegistrations(cohort.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-text-secondary hover:text-white transition-colors"
+                  >
+                    Load Registrations
+                  </button>
+                )}
                 {registeredCount > 0 && (
                   <button
                     onClick={() => confirmCohortRegistrations(cohort.id, maxCap)}
@@ -126,9 +167,11 @@ export default function Step3Registrations({
               </div>
             </div>
 
-            {regs.length === 0 ? (
+            {hasLoadedRegs && regs.length === 0 && (
               <p className="text-text-muted text-xs">No registrations yet.</p>
-            ) : (
+            )}
+
+            {hasLoadedRegs && regs.length > 0 && (
               <div className="space-y-1">
                 {regs.map((reg) => (
                   <div key={reg.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-bg-tertiary/30">
@@ -153,15 +196,20 @@ export default function Step3Registrations({
         );
       })}
 
-      {confirmedMemberCount === 0 && !isReview && (
+      {/* Navigation hints */}
+      {confirmedMemberCount === 0 && totalRegisteredCount === 0 && !isReview && (
         <p className="text-text-muted text-sm">
-          Confirm at least one member registration before assigning leagues.
+          Share your invite links and come back when members have signed up.
         </p>
       )}
-
+      {confirmedMemberCount === 0 && totalRegisteredCount > 0 && !isReview && (
+        <p className="text-text-muted text-sm">
+          Confirm at least one registered member before configuring leagues.
+        </p>
+      )}
       {confirmedMemberCount > 0 && !isReview && (
         <p className="text-text-muted text-sm">
-          Continue to League Assignment to assign confirmed members to leagues.
+          Continue to Configure Leagues to set up your league structure.
         </p>
       )}
     </div>

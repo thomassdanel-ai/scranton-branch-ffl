@@ -17,7 +17,7 @@ type Props = {
   memberSeasons: MemberSeason[];
   draftBoards: DraftBoard[];
   flash: FlashFn;
-  onMutate: () => Promise<void>;
+  onComplete: () => Promise<void>;
 };
 
 export default function Step6SleeperLinking({
@@ -27,7 +27,7 @@ export default function Step6SleeperLinking({
   memberSeasons,
   draftBoards,
   flash,
-  onMutate,
+  onComplete,
 }: Props) {
   const [sleeperLinks, setSleeperLinks] = useState<Record<string, string>>({});
   const [sleeperRosters, setSleeperRosters] = useState<Record<string, SleeperRosterInfo[]>>({});
@@ -50,7 +50,6 @@ export default function Step6SleeperLinking({
     }
     setSleeperDraftIds(draftIds);
 
-    // Initialize roster mappings from existing member_season data
     const mappings: Record<string, { sleeper_roster_id: string; sleeper_display_name: string }> = {};
     for (const ms of memberSeasons) {
       if (ms.sleeper_roster_id) {
@@ -90,7 +89,7 @@ export default function Step6SleeperLinking({
       flash(err.error || 'Save failed', 'error');
     } else {
       flash('Sleeper links saved', 'success');
-      await onMutate();
+      await onComplete();
     }
     setSaving(false);
   }
@@ -118,20 +117,20 @@ export default function Step6SleeperLinking({
       flash('Failed to link Sleeper draft', 'error');
     } else {
       flash(`Sleeper draft linked for ${leagues.find((l) => l.id === leagueId)?.name}`, 'success');
-      await onMutate();
+      await onComplete();
     }
     setValidatingDraft(null);
   }
 
-  // Compute per-league completion
   function getLeagueStatus(leagueId: string) {
     const league = leagues.find((l) => l.id === leagueId);
     const hasSleeperLeague = !!league?.sleeper_league_id;
     const leagueMS = memberSeasons.filter((ms) => ms.league_id === leagueId);
-    const allRostersMapped = leagueMS.length > 0 && leagueMS.every((ms) => !!ms.sleeper_roster_id);
+    const unmappedCount = leagueMS.filter((ms) => !ms.sleeper_roster_id).length;
+    const allRostersMapped = leagueMS.length > 0 && unmappedCount === 0;
     const board = draftBoards.find((b) => b.league_id === leagueId);
     const hasDraftLink = !!board?.sleeper_draft_id;
-    return { hasSleeperLeague, allRostersMapped, hasDraftLink };
+    return { hasSleeperLeague, allRostersMapped, unmappedCount, hasDraftLink };
   }
 
   const allLeaguesComplete = leagues.every((l) => {
@@ -141,9 +140,9 @@ export default function Step6SleeperLinking({
 
   return (
     <div className="glass-card p-6 space-y-4">
-      <h2 className="text-lg font-bold text-white">Step 6: Sleeper Linking</h2>
+      <h2 className="text-lg font-bold text-white">Step 6: Link Sleeper Leagues</h2>
       <p className="text-text-muted text-sm">
-        Link Sleeper league IDs, map rosters to members, and connect draft boards.
+        Connect each league to its Sleeper league, map rosters, and link drafts.
       </p>
 
       {leagues.map((league) => {
@@ -153,13 +152,17 @@ export default function Step6SleeperLinking({
         return (
           <div key={league.id} className="p-4 rounded-lg bg-bg-tertiary/50 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-white">{league.name}</h3>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.color }} />
+                <h3 className="font-bold text-white">{league.name}</h3>
+              </div>
               <div className="flex items-center gap-2 text-xs">
                 <span className={status.hasSleeperLeague ? 'text-green-300' : 'text-text-muted'}>
                   {status.hasSleeperLeague ? '\u2713' : '\u25cb'} League ID
                 </span>
                 <span className={status.allRostersMapped ? 'text-green-300' : 'text-text-muted'}>
                   {status.allRostersMapped ? '\u2713' : '\u25cb'} Rosters
+                  {!status.allRostersMapped && status.unmappedCount > 0 && ` (${status.unmappedCount} unmapped)`}
                 </span>
                 <span className={status.hasDraftLink ? 'text-green-300' : 'text-text-muted'}>
                   {status.hasDraftLink ? '\u2713' : '\u25cb'} Draft
@@ -253,9 +256,7 @@ export default function Step6SleeperLinking({
             )}
 
             {board?.sleeper_draft_id && (
-              <p className="text-xs text-green-300">
-                Draft linked: {board.sleeper_draft_id}
-              </p>
+              <p className="text-xs text-green-300">Draft linked: {board.sleeper_draft_id}</p>
             )}
 
             {!board && (
@@ -276,9 +277,7 @@ export default function Step6SleeperLinking({
       {allLeaguesComplete && (
         <div className="p-4 rounded-lg bg-accent-green/10 border border-accent-green/30 text-center">
           <p className="text-accent-green text-lg font-bold">Season Setup Complete!</p>
-          <p className="text-text-muted text-sm mt-1">
-            All leagues are linked and ready to go.
-          </p>
+          <p className="text-text-muted text-sm mt-1">All leagues are linked and ready to go.</p>
           <Link
             href="/admin"
             className="inline-block mt-3 px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors"

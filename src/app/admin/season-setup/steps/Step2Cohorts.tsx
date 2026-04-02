@@ -8,19 +8,26 @@ type Props = {
   season: Season | null;
   cohorts: Cohort[];
   flash: FlashFn;
-  onMutate: () => Promise<void>;
+  onComplete: () => Promise<void>;
   isReview: boolean;
 };
 
-export default function Step2Cohorts({ season, cohorts, flash, onMutate, isReview }: Props) {
+export default function Step2Cohorts({ season, cohorts, flash, onComplete, isReview }: Props) {
   const [newCohortName, setNewCohortName] = useState('');
   const [newCohortColor, setNewCohortColor] = useState('#3b82f6');
   const [newCohortCapacity, setNewCohortCapacity] = useState('');
   const [saving, setSaving] = useState(false);
   const [emailCohortId, setEmailCohortId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [expandedRegs, setExpandedRegs] = useState<Record<string, Registration[]>>({});
 
   const siteUrl = typeof window !== 'undefined' ? window.location.origin : '';
+
+  type Registration = {
+    id: string;
+    status: string;
+    members: { full_name: string; display_name: string | null; email: string };
+  };
 
   if (!season) {
     return (
@@ -53,7 +60,7 @@ export default function Step2Cohorts({ season, cohorts, flash, onMutate, isRevie
       flash('Cohort created', 'success');
       setNewCohortName('');
       setNewCohortCapacity('');
-      await onMutate();
+      await onComplete();
     }
     setSaving(false);
   }
@@ -63,6 +70,14 @@ export default function Step2Cohorts({ season, cohorts, flash, onMutate, isRevie
     await navigator.clipboard.writeText(url);
     setCopiedLink(token);
     setTimeout(() => setCopiedLink(null), 2000);
+  }
+
+  async function fetchRegistrations(cohortId: string) {
+    const res = await fetch(`/api/admin/cohorts/${cohortId}/registrations`);
+    if (res.ok) {
+      const data = await res.json();
+      setExpandedRegs((prev) => ({ ...prev, [cohortId]: data.registrations || [] }));
+    }
   }
 
   return (
@@ -76,7 +91,7 @@ export default function Step2Cohorts({ season, cohorts, flash, onMutate, isRevie
         )}
       </div>
       <p className="text-text-muted text-sm">
-        Create cohorts, generate invite links, and share with your league members.
+        Create cohorts for different groups, send invite links, and wait for signups.
       </p>
 
       {/* Existing cohorts */}
@@ -129,6 +144,12 @@ export default function Step2Cohorts({ season, cohorts, flash, onMutate, isRevie
                   >
                     {emailCohortId === cohort.id ? 'Hide Email' : 'Generate Email'}
                   </button>
+                  <button
+                    onClick={() => fetchRegistrations(cohort.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-text-secondary hover:text-white transition-colors"
+                  >
+                    View Registrations
+                  </button>
                 </div>
 
                 {emailCohortId === cohort.id && (
@@ -137,6 +158,32 @@ export default function Step2Cohorts({ season, cohorts, flash, onMutate, isRevie
                     seasonYear={String(season.year)}
                     inviteUrl={`${siteUrl}/register/${cohort.invite_token}`}
                   />
+                )}
+
+                {expandedRegs[cohort.id] && (
+                  <div className="space-y-1 mt-2">
+                    {expandedRegs[cohort.id].length === 0 ? (
+                      <p className="text-text-muted text-xs">No registrations yet.</p>
+                    ) : (
+                      expandedRegs[cohort.id].map((reg) => (
+                        <div key={reg.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-bg-tertiary/30">
+                          <span className="text-text-secondary text-xs">
+                            {reg.members?.display_name || reg.members?.full_name}
+                            <span className="text-text-muted ml-1">({reg.members?.email})</span>
+                          </span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            reg.status === 'confirmed' || reg.status === 'promoted'
+                              ? 'bg-green-500/20 text-green-300'
+                              : reg.status === 'waitlisted'
+                                ? 'bg-yellow-500/20 text-yellow-300'
+                                : 'bg-blue-500/20 text-blue-300'
+                          }`}>
+                            {reg.status}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -182,9 +229,13 @@ export default function Step2Cohorts({ season, cohorts, flash, onMutate, isRevie
         </div>
       </form>
 
+      {/* Navigation hints */}
+      {cohorts.length === 0 && (
+        <p className="text-text-muted text-sm">Create at least one cohort to continue.</p>
+      )}
       {cohorts.length > 0 && !isReview && (
         <p className="text-text-muted text-sm">
-          Continue to Review Registrations once members have signed up.
+          Waiting for signups... share your invite links and come back when people have registered.
         </p>
       )}
     </div>

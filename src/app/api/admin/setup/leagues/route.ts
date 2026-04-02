@@ -53,16 +53,20 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'randomize') {
-    // Get confirmed/active members
-    const { data: members } = await supabase
-      .from('members')
-      .select('id')
-      .eq('org_id', season.org_id)
-      .eq('status', 'active');
+    // Get confirmed/promoted registrations for this season (not all active members)
+    const { data: registrations } = await supabase
+      .from('season_registrations')
+      .select('member_id')
+      .eq('season_id', seasonId)
+      .in('status', ['confirmed', 'promoted']);
 
-    if (!members || members.length === 0) {
-      return NextResponse.json({ error: 'No active members to randomize' }, { status: 400 });
+    if (!registrations || registrations.length === 0) {
+      return NextResponse.json({ error: 'No confirmed members to randomize' }, { status: 400 });
     }
+
+    // Deduplicate member_ids (a member could be in multiple cohorts)
+    const uniqueMemberIds = Array.from(new Set(registrations.map((r) => r.member_id)));
+    const members = uniqueMemberIds.map((id) => ({ id }));
 
     // Shuffle and round-robin into leagues
     const shuffled = shuffle(members);

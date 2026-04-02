@@ -10,7 +10,7 @@ type Props = {
   memberSeasons: MemberSeason[];
   draftBoards: DraftBoard[];
   flash: FlashFn;
-  onMutate: () => Promise<void>;
+  onComplete: () => Promise<void>;
   isReview: boolean;
 };
 
@@ -21,7 +21,7 @@ export default function Step5DraftOrder({
   memberSeasons,
   draftBoards,
   flash,
-  onMutate,
+  onComplete,
   isReview,
 }: Props) {
   const [draftOrders, setDraftOrders] = useState<Record<string, number>>({});
@@ -32,7 +32,7 @@ export default function Step5DraftOrder({
     return m?.display_name || m?.full_name || 'Unknown';
   }
 
-  // If draft boards exist (step complete), show read-only
+  // If draft boards exist, show read-only locked view
   if (draftBoards.length > 0) {
     return (
       <div className="glass-card p-6 space-y-4">
@@ -50,7 +50,10 @@ export default function Step5DraftOrder({
               .sort((a, b) => (a.draft_position || 0) - (b.draft_position || 0));
             return (
               <div key={league.id} className="p-4 rounded-lg bg-bg-tertiary/50">
-                <h3 className="font-bold text-white mb-2">{league.name}</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.color }} />
+                  <h3 className="font-bold text-white">{league.name}</h3>
+                </div>
                 <div className="space-y-1">
                   {leagueMS.map((ms) => (
                     <div key={ms.id} className="flex items-center gap-2">
@@ -67,7 +70,7 @@ export default function Step5DraftOrder({
     );
   }
 
-  // Active state
+  // Active state — randomize and lock
   async function randomizeDraft() {
     const res = await fetch('/api/admin/setup/draft', {
       method: 'POST',
@@ -101,7 +104,7 @@ export default function Step5DraftOrder({
       flash('Draft order locked! Pick slots generated. Season advanced to drafting.', 'success');
     }
     setSaving(false);
-    await onMutate();
+    await onComplete();
   }
 
   return (
@@ -129,7 +132,10 @@ export default function Step5DraftOrder({
                 .sort((a, b) => (draftOrders[a.id] || 0) - (draftOrders[b.id] || 0));
               return (
                 <div key={league.id} className="p-4 rounded-lg bg-bg-tertiary/50">
-                  <h3 className="font-bold text-white mb-2">{league.name}</h3>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.color }} />
+                    <h3 className="font-bold text-white">{league.name}</h3>
+                  </div>
                   <div className="space-y-1">
                     {leagueMS.map((ms) => (
                       <div key={ms.id} className="flex items-center gap-2">

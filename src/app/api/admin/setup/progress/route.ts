@@ -15,22 +15,28 @@ async function getOrgId(supabase: ReturnType<typeof createServiceClient>): Promi
 
 function computeCurrentStep(
   season: { status: string } | null,
+  leaguesCount: number,
   cohortsCount: number,
   confirmedMemberCount: number,
   memberSeasonsCount: number,
-  draftBoardsCount: number,
 ): number {
   if (!season) return 1;
-  // Season exists
+  // Season exists — cohorts require season_id, so they come after season creation
   if (cohortsCount === 0) return 2;
+  // Cohorts exist but no confirmed members yet — review registrations
   if (confirmedMemberCount === 0 && memberSeasonsCount === 0) return 3;
+  // Confirmed members exist but leagues not yet configured
+  if (leaguesCount === 0) return 4;
+  // Leagues configured but not yet assigned (no member_seasons)
   if (memberSeasonsCount === 0) return 4;
+  // Leagues assigned — draft order next
   if (season.status === 'pre_draft') return 5;
+  // Draft locked — Sleeper linking
   if (season.status === 'drafting') return 6;
+  // Season active or beyond — wizard complete
   if (['active', 'playoffs', 'completed', 'archived'].includes(season.status)) return 7;
-  // Fallback for setup/registering/confirming with member_seasons
-  if (draftBoardsCount === 0) return 5;
-  return 6;
+  // Fallback
+  return 5;
 }
 
 // GET: Return complete wizard progress state in a single call
@@ -50,34 +56,37 @@ export async function GET() {
       .limit(1)
       .single();
 
-    if (!season) {
-      // Get next season number
-      const { data: latest } = await supabase
-        .from('seasons')
-        .select('season_number')
-        .eq('org_id', orgId)
-        .order('season_number', { ascending: false })
-        .limit(1)
-        .single();
+    // Get next season number
+    const { data: latest } = await supabase
+      .from('seasons')
+      .select('season_number')
+      .eq('org_id', orgId)
+      .order('season_number', { ascending: false })
+      .limit(1)
+      .single();
 
+    const nextSeasonNumber = (latest?.season_number || 0) + 1;
+
+    if (!season) {
       return NextResponse.json({
         season: null,
-        nextSeasonNumber: (latest?.season_number || 0) + 1,
+        nextSeasonNumber,
         leagues: [],
         cohorts: [],
         registrationsByCohort: {},
         confirmedMemberCount: 0,
+        totalRegisteredCount: 0,
         members: [],
         memberSeasons: [],
         draftBoards: [],
         currentStep: 1,
-        stepCompletionStatus: {
-          step1_season: false,
-          step2_cohorts: false,
-          step3_registrations: false,
-          step4_leagues: false,
-          step5_draft: false,
-          step6_sleeper: false,
+        stepCompletion: {
+          season: false,
+          cohorts: false,
+          registrations: false,
+          leagues: false,
+          draft: false,
+          sleeper: false,
         },
       });
     }
@@ -130,6 +139,7 @@ export async function GET() {
     // Fetch registrations per cohort
     const registrationsByCohort: Record<string, unknown[]> = {};
     let confirmedMemberCount = 0;
+    let totalRegisteredCount = 0;
 
     if (cohortList.length > 0) {
       const cohortIds = cohortList.map((c: { id: string }) => c.id);
@@ -143,20 +153,12 @@ export async function GET() {
         const cid = reg.cohort_id as string;
         if (!registrationsByCohort[cid]) registrationsByCohort[cid] = [];
         registrationsByCohort[cid].push(reg);
+        totalRegisteredCount++;
         if (reg.status === 'confirmed' || reg.status === 'promoted') {
           confirmedMemberCount++;
         }
       }
     }
-
-    // Get next season number
-    const { data: latest } = await supabase
-      .from('seasons')
-      .select('season_number')
-      .eq('org_id', orgId)
-      .order('season_number', { ascending: false })
-      .limit(1)
-      .single();
 
     const leagueList = leagues || [];
     const memberSeasonList = memberSeasons || [];
@@ -164,37 +166,39 @@ export async function GET() {
 
     const currentStep = computeCurrentStep(
       season,
+      leagueList.length,
       cohortList.length,
       confirmedMemberCount,
       memberSeasonList.length,
-      draftBoardList.length,
     );
 
-    // Step completion status
-    const allLeaguesLinked = leagueList.length > 0 && leagueList.every((l: { sleeper_league_id: string | null }) => !!l.sleeper_league_id);
-    const allRostersMapped = memberSeasonList.length > 0 && memberSeasonList.every((ms: { sleeper_roster_id: string | null }) => !!ms.sleeper_roster_id);
+    // Step completion
+    const allLeaguesLinked = leagueList.length > 0 &&
+      leagueList.every((l: { sleeper_league_id: string | null }) => !!l.sleeper_league_id);
 
-    const stepCompletionStatus = {
-      step1_season: true,
-      step2_cohorts: cohortList.length > 0,
-      step3_registrations: confirmedMemberCount > 0,
-      step4_leagues: memberSeasonList.length > 0,
-      step5_draft: draftBoardList.length > 0 && draftBoardList.every((b: { status: string }) => b.status !== 'pending'),
-      step6_sleeper: allLeaguesLinked && allRostersMapped,
+    const stepCompletion = {
+      season: true,
+      cohorts: cohortList.length > 0,
+      registrations: confirmedMemberCount > 0,
+      leagues: memberSeasonList.length > 0,
+      draft: draftBoardList.length > 0 &&
+        draftBoardList.every((b: { status: string; is_mock: boolean | null }) => b.is_mock || b.status !== 'pending'),
+      sleeper: allLeaguesLinked,
     };
 
     return NextResponse.json({
       season,
-      nextSeasonNumber: (latest?.season_number || 0) + 1,
+      nextSeasonNumber,
       leagues: leagueList,
       cohorts: cohortList,
       registrationsByCohort,
       confirmedMemberCount,
+      totalRegisteredCount,
       members: members || [],
       memberSeasons: memberSeasonList,
       draftBoards: draftBoardList,
       currentStep,
-      stepCompletionStatus,
+      stepCompletion,
     });
   } catch (err) {
     if (err instanceof AuthError) {

@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Step1CreateSeason from './steps/Step1CreateSeason';
+import Step1StartSeason from './steps/Step1StartSeason';
 import Step2Cohorts from './steps/Step2Cohorts';
 import Step3Registrations from './steps/Step3Registrations';
-import Step4LeagueAssignment from './steps/Step4LeagueAssignment';
+import Step4ConfigureAndAssign from './steps/Step4ConfigureAndAssign';
 import Step5DraftOrder from './steps/Step5DraftOrder';
 import Step6SleeperLinking from './steps/Step6SleeperLinking';
 
@@ -73,13 +73,13 @@ export type DraftBoard = {
   status: string;
 };
 
-export type StepCompletionStatus = {
-  step1_season: boolean;
-  step2_cohorts: boolean;
-  step3_registrations: boolean;
-  step4_leagues: boolean;
-  step5_draft: boolean;
-  step6_sleeper: boolean;
+export type StepCompletion = {
+  season: boolean;
+  cohorts: boolean;
+  registrations: boolean;
+  leagues: boolean;
+  draft: boolean;
+  sleeper: boolean;
 };
 
 export type FlashFn = (msg: string, type: 'error' | 'success') => void;
@@ -91,18 +91,19 @@ type ProgressData = {
   cohorts: Cohort[];
   registrationsByCohort: Record<string, Registration[]>;
   confirmedMemberCount: number;
+  totalRegisteredCount: number;
   members: Member[];
   memberSeasons: MemberSeason[];
   draftBoards: DraftBoard[];
   currentStep: number;
-  stepCompletionStatus: StepCompletionStatus;
+  stepCompletion: StepCompletion;
 };
 
 const STEPS = [
-  { num: 1, label: 'Create Season' },
+  { num: 1, label: 'Start Season' },
   { num: 2, label: 'Cohorts & Invites' },
   { num: 3, label: 'Review Registrations' },
-  { num: 4, label: 'League Assignment' },
+  { num: 4, label: 'Configure & Assign' },
   { num: 5, label: 'Draft Order' },
   { num: 6, label: 'Sleeper Linking' },
 ];
@@ -129,7 +130,6 @@ export default function SeasonSetupPage() {
     const data: ProgressData = await res.json();
     setProgress(data);
     setLoading(false);
-    // Auto-navigate to current step when first loading or after mutations
     setViewingStep(null);
   }, [router]);
 
@@ -145,7 +145,6 @@ export default function SeasonSetupPage() {
     );
   }
 
-  // Safe to use `p` below — early return above guarantees non-null
   const p = progress;
   const { currentStep } = p;
   const activeViewStep = viewingStep ?? currentStep;
@@ -157,7 +156,7 @@ export default function SeasonSetupPage() {
     }
   }
 
-  async function onMutate() {
+  async function onComplete() {
     await fetchProgress();
   }
 
@@ -185,13 +184,11 @@ export default function SeasonSetupPage() {
     switch (activeViewStep) {
       case 1:
         return (
-          <Step1CreateSeason
+          <Step1StartSeason
             season={p.season}
             nextSeasonNumber={p.nextSeasonNumber}
-            leagues={p.leagues}
             flash={flash}
-            onMutate={onMutate}
-            isReview={currentStep > 1}
+            onComplete={onComplete}
           />
         );
       case 2:
@@ -200,30 +197,34 @@ export default function SeasonSetupPage() {
             season={p.season}
             cohorts={p.cohorts}
             flash={flash}
-            onMutate={onMutate}
+            onComplete={onComplete}
             isReview={currentStep > 2}
           />
         );
       case 3:
         return (
           <Step3Registrations
+            season={p.season}
             cohorts={p.cohorts}
             registrationsByCohort={p.registrationsByCohort}
             confirmedMemberCount={p.confirmedMemberCount}
+            totalRegisteredCount={p.totalRegisteredCount}
+            memberSeasons={p.memberSeasons}
             flash={flash}
-            onMutate={onMutate}
+            onComplete={onComplete}
             isReview={currentStep > 3}
           />
         );
       case 4:
         return (
-          <Step4LeagueAssignment
+          <Step4ConfigureAndAssign
             season={p.season!}
             leagues={p.leagues}
             members={p.members}
             memberSeasons={p.memberSeasons}
+            confirmedMemberCount={p.confirmedMemberCount}
             flash={flash}
-            onMutate={onMutate}
+            onComplete={onComplete}
             isReview={currentStep > 4}
           />
         );
@@ -236,7 +237,7 @@ export default function SeasonSetupPage() {
             memberSeasons={p.memberSeasons}
             draftBoards={p.draftBoards}
             flash={flash}
-            onMutate={onMutate}
+            onComplete={onComplete}
             isReview={currentStep > 5}
           />
         );
@@ -249,7 +250,7 @@ export default function SeasonSetupPage() {
             memberSeasons={p.memberSeasons}
             draftBoards={p.draftBoards}
             flash={flash}
-            onMutate={onMutate}
+            onComplete={onComplete}
           />
         );
       default:
