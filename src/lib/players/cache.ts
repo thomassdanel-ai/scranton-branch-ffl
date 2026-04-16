@@ -27,20 +27,28 @@ export async function getPlayerLookup(): Promise<PlayerLookup> {
   }
 
   // 2. Supabase normalized table
+  //
+  // IMPORTANT: PostgREST caps a single `.select()` at 1000 rows by default,
+  // but players_normalized has ~11k rows (every active NFL player + D/STs).
+  // Without pagination we'd only load the first 1000, causing IDs like
+  // #12476, #SF, #TB to render as "#<id>" in the UI. Page through with
+  // explicit .range() windows to guarantee we read every row.
   try {
     const supabase = createServiceClient();
-    const { data, count } = await supabase
+    const { count } = await supabase
       .from('players_normalized')
-      .select('player_id, full_name, position, team', { count: 'exact', head: true });
+      .select('player_id', { count: 'exact', head: true });
 
-    // Only use if table has data
     if (count && count > 0) {
-      const { data: players } = await supabase
-        .from('players_normalized')
-        .select('player_id, full_name, position, team');
-
-      if (players && players.length > 0) {
-        const lookup: PlayerLookup = {};
+      const lookup: PlayerLookup = {};
+      const PAGE = 1000;
+      for (let from = 0; from < count; from += PAGE) {
+        const to = Math.min(from + PAGE - 1, count - 1);
+        const { data: players, error } = await supabase
+          .from('players_normalized')
+          .select('player_id, full_name, position, team')
+          .range(from, to);
+        if (error || !players) break;
         for (const p of players) {
           lookup[p.player_id] = {
             player_id: p.player_id,
@@ -49,6 +57,9 @@ export async function getPlayerLookup(): Promise<PlayerLookup> {
             team: p.team ?? null,
           };
         }
+      }
+
+      if (Object.keys(lookup).length > 0) {
         memoryCache = lookup;
         memoryCacheTime = Date.now();
         return lookup;
