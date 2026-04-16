@@ -534,7 +534,11 @@ export default function AdminPage() {
 
           <Link href="/admin/situation-room" className="glass-card p-4 text-left hover:bg-white/5 transition-colors border-l-4 border-red-500">
             <h4 className="text-white font-semibold text-sm">Situation Room</h4>
-            <p className="text-text-muted text-xs">Monitor all active drafts</p>
+            <p className="text-text-muted text-xs">
+              {season && ['confirming', 'pre_draft'].includes(season.status)
+                ? 'Track league enrollment & send invites'
+                : 'Monitor all active drafts'}
+            </p>
           </Link>
 
           <Link href="/admin/bracket" className="glass-card p-4 text-left hover:bg-white/5 transition-colors border-l-4 border-blue-500">

@@ -16,6 +16,8 @@ export default function RegisterPage({ params }: { params: { token: string } }) 
   const [error, setError] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [sleeperUsername, setSleeperUsername] = useState('');
+  const [showGuide, setShowGuide] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
@@ -44,7 +46,7 @@ export default function RegisterPage({ params }: { params: { token: string } }) 
       const res = await fetch(`/api/register/${params.token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, email }),
+        body: JSON.stringify({ fullName, email, sleeperUsername: sleeperUsername || undefined }),
       });
 
       const data = await res.json();
@@ -125,6 +127,67 @@ export default function RegisterPage({ params }: { params: { token: string } }) 
           className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary"
           required
         />
+
+        {/* Sleeper username with guided walkthrough */}
+        <div className="space-y-2">
+          <div className="flex items-center rounded-lg bg-bg-tertiary border border-white/10 focus-within:border-primary">
+            <span className="pl-4 text-text-muted select-none">@</span>
+            <input
+              type="text"
+              value={sleeperUsername}
+              onChange={(e) => setSleeperUsername(e.target.value)}
+              placeholder="Sleeper username"
+              className="w-full px-2 py-2 bg-transparent text-white placeholder-text-muted focus:outline-none"
+            />
+          </div>
+          <p className="text-text-muted text-xs">
+            Used to auto-detect when you join your league on Sleeper
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setShowGuide(!showGuide)}
+            className="text-primary text-xs font-medium hover:text-primary-light transition-colors flex items-center gap-1"
+          >
+            <svg
+              className={`w-3 h-3 transition-transform duration-200 ${showGuide ? 'rotate-90' : ''}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            Where do I find this?
+          </button>
+
+          {showGuide && (
+            <div className="rounded-lg bg-white/5 border border-white/10 p-4 space-y-4 text-sm">
+              {[
+                { step: 1, title: 'Open the Sleeper app', desc: 'Download Sleeper from the App Store or Google Play if you haven\'t already.' },
+                { step: 2, title: 'Tap your profile icon', desc: 'It\'s in the bottom-right corner of the app.' },
+                { step: 3, title: 'Find your username', desc: 'Your username is shown below your display name. It starts with @.' },
+              ].map(({ step, title, desc }) => (
+                <div key={step} className="flex gap-3">
+                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center">
+                    {step}
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-white font-medium">{title}</p>
+                    <p className="text-text-muted text-xs">{desc}</p>
+                    {/* Screenshot placeholder -- drop actual screenshots in /public/images/sleeper-guide/ */}
+                    <img
+                      src={`/images/sleeper-guide/step-${step}.png`}
+                      alt={`Step ${step}: ${title}`}
+                      className="rounded-lg border border-white/10 w-full max-w-[200px] hidden"
+                      onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('hidden'); }}
+                    />
+                  </div>
+                </div>
+              ))}
+              <p className="text-text-muted text-xs pt-1">
+                Don&apos;t have Sleeper yet? No worries — you can skip this and the commissioner will help match you later.
+              </p>
+            </div>
+          )}
+        </div>
 
         {error && <p className="text-accent-red text-sm text-center">{error}</p>}
 

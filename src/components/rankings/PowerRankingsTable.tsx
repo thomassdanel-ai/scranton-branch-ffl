@@ -1,120 +1,175 @@
 import type { RankedTeam } from '@/lib/rankings/compute';
+import Card from '@/components/ui/Card';
 
 interface Props {
   rankings: RankedTeam[];
 }
 
+// Aurora palette for the breakdown bar segments. Order matches Win%, PF, Luck, Streak.
+const SEGMENT_COLORS = ['#E056FF', '#56F0FF', '#CCFF56', '#9D7FFF'] as const;
+const SEGMENT_LABELS = ['Win %', 'Points For', 'Luck', 'Streak'] as const;
+
 export default function PowerRankingsTable({ rankings }: Props) {
   if (!rankings.length) {
     return (
-      <div className="glass-card p-8 text-center">
+      <Card padding="lg" className="text-center">
         <p className="text-text-muted">No ranking data available yet.</p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-2">
-      {rankings.map((entry) => {
+    <div className="space-y-3">
+      {rankings.map((entry, idx) => {
         const { team, rank } = entry;
         const totalGames = team.wins + team.losses + team.ties;
-        const winPct = totalGames > 0 ? (team.wins / totalGames * 100).toFixed(0) : '0';
+        const winPct = totalGames > 0 ? ((team.wins / totalGames) * 100).toFixed(0) : '0';
+
+        // Leader gets magenta edge, top 3 keeps a subtler tint.
+        const edge = idx === 0 ? 'mag' : idx === 1 ? 'cyan' : idx === 2 ? 'lime' : 'none';
+
+        const segments = [
+          entry.winPctScore,
+          entry.pointsForScore,
+          entry.luckScore,
+          entry.streakScore,
+        ];
+        const total = segments.reduce((a, b) => a + b, 0) || 1;
 
         return (
-          <div key={`${entry.leagueId}-${team.rosterId}`} className="glass-card p-4">
+          <Card
+            key={`${entry.leagueId}-${team.rosterId}`}
+            edge={edge}
+            padding="md"
+            className="relative overflow-hidden"
+          >
             <div className="flex items-center gap-4">
-              {/* Rank */}
-              <div className="w-8 text-center">
-                <span className="stat text-lg font-bold text-white">{rank}</span>
+              {/* Rank — oversized display numeral */}
+              <div className="w-14 shrink-0 text-right">
+                <span
+                  className={`stat font-display font-bold leading-none tracking-[-0.04em] ${
+                    idx === 0
+                      ? 'text-5xl text-aurora-mag-cyan'
+                      : idx < 3
+                        ? 'text-4xl text-text-primary'
+                        : 'text-3xl text-text-muted'
+                  }`}
+                >
+                  {String(rank).padStart(2, '0')}
+                </span>
               </div>
 
               {/* Avatar */}
               {team.avatar ? (
-                <img src={team.avatar} alt="" className="w-10 h-10 rounded-full bg-bg-tertiary shrink-0" />
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={team.avatar}
+                  alt=""
+                  className="w-11 h-11 rounded-full bg-bg-tertiary shrink-0 border border-hairline"
+                />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-bg-tertiary shrink-0" />
+                <div className="w-11 h-11 rounded-full bg-bg-tertiary shrink-0 border border-hairline" />
               )}
 
               {/* Team info */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold text-white truncate">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p
+                    className={`truncate ${
+                      idx === 0
+                        ? 'font-display font-bold text-lg text-text-primary tracking-tight'
+                        : 'font-semibold text-text-primary'
+                    }`}
+                  >
                     {team.teamName ?? team.displayName}
                   </p>
                   <span
-                    className="shrink-0 px-2 py-0.5 rounded text-xs font-semibold"
+                    className="shrink-0 px-2 py-0.5 rounded-full font-mono text-[10px] tracking-[0.14em] uppercase font-semibold"
                     style={{
-                      backgroundColor: `${entry.leagueColor}22`,
+                      backgroundColor: `${entry.leagueColor}1f`,
                       color: entry.leagueColor,
-                      border: `1px solid ${entry.leagueColor}44`,
+                      border: `1px solid ${entry.leagueColor}55`,
                     }}
                   >
                     {entry.leagueName}
                   </span>
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
+                <div className="flex items-center gap-4 mt-1.5 font-mono text-[11px] text-text-muted tracking-wide">
                   <span>
-                    <span className="text-accent-green">{team.wins}</span>
-                    <span>-</span>
-                    <span className="text-accent-red">{team.losses}</span>
-                    {team.ties > 0 && <span>-{team.ties}</span>}
+                    <span className="text-aurora-lime">{team.wins}</span>
+                    <span className="opacity-60">·</span>
+                    <span className="text-aurora-pink">{team.losses}</span>
+                    {team.ties > 0 && (
+                      <>
+                        <span className="opacity-60">·</span>
+                        <span>{team.ties}</span>
+                      </>
+                    )}
                   </span>
-                  <span className="text-text-secondary">{winPct}%</span>
-                  <span>PF: <span className="stat text-text-secondary">{team.pointsFor.toFixed(0)}</span></span>
-                  <span>PA: <span className="stat text-text-secondary">{team.pointsAgainst.toFixed(0)}</span></span>
+                  <span>
+                    <span className="text-text-muted opacity-60">WIN</span>{' '}
+                    <span className="stat text-text-secondary">{winPct}%</span>
+                  </span>
+                  <span>
+                    <span className="text-text-muted opacity-60">PF</span>{' '}
+                    <span className="stat text-text-secondary">{team.pointsFor.toFixed(0)}</span>
+                  </span>
+                  <span className="hidden sm:inline">
+                    <span className="text-text-muted opacity-60">PA</span>{' '}
+                    <span className="stat text-text-secondary">
+                      {team.pointsAgainst.toFixed(0)}
+                    </span>
+                  </span>
                 </div>
               </div>
 
               {/* Power score */}
               <div className="text-right shrink-0">
-                <p className="stat text-xl font-bold text-accent-gold">
+                <p
+                  className={`stat font-display font-bold leading-none tracking-[-0.03em] ${
+                    idx === 0 ? 'text-3xl text-aurora-mag-cyan' : 'text-2xl text-text-primary'
+                  }`}
+                >
                   {entry.powerScore.toFixed(1)}
                 </p>
-                <p className="text-xs text-text-muted mt-0.5">Power Score</p>
+                <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-text-muted mt-1">
+                  Power
+                </p>
               </div>
             </div>
 
             {/* Score breakdown bar */}
-            <div className="mt-3 flex h-1.5 rounded-full overflow-hidden bg-bg-tertiary">
-              <div
-                className="bg-primary"
-                style={{ width: `${(entry.winPctScore / entry.powerScore) * 100}%` }}
-                title={`Win% (${entry.winPctScore.toFixed(1)})`}
-              />
-              <div
-                className="bg-accent-purple"
-                style={{ width: `${(entry.pointsForScore / entry.powerScore) * 100}%` }}
-                title={`PF Rank (${entry.pointsForScore.toFixed(1)})`}
-              />
-              <div
-                className="bg-accent-green"
-                style={{ width: `${(entry.luckScore / entry.powerScore) * 100}%` }}
-                title={`Luck (${entry.luckScore.toFixed(1)})`}
-              />
-              <div
-                className="bg-accent-gold"
-                style={{ width: `${(entry.streakScore / entry.powerScore) * 100}%` }}
-                title={`Streak (${entry.streakScore.toFixed(1)})`}
-              />
+            <div className="mt-4 flex h-[3px] rounded-full overflow-hidden bg-white/[0.05]">
+              {segments.map((v, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: `${(v / total) * 100}%`,
+                    backgroundColor: SEGMENT_COLORS[i],
+                    boxShadow: idx < 3 ? `0 0 8px ${SEGMENT_COLORS[i]}66` : undefined,
+                  }}
+                  title={`${SEGMENT_LABELS[i]} (${v.toFixed(1)})`}
+                />
+              ))}
             </div>
-          </div>
+          </Card>
         );
       })}
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 pt-2 text-xs text-text-muted">
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-2 rounded-sm bg-primary inline-block" /> Win%
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-2 rounded-sm bg-accent-purple inline-block" /> Points For
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-2 rounded-sm bg-accent-green inline-block" /> Luck
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-2 rounded-sm bg-accent-gold inline-block" /> Streak
-        </span>
+      <div className="flex items-center justify-center flex-wrap gap-x-5 gap-y-2 pt-4">
+        {SEGMENT_LABELS.map((label, i) => (
+          <span
+            key={label}
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted"
+          >
+            <span
+              className="w-4 h-[3px] rounded-full inline-block"
+              style={{ backgroundColor: SEGMENT_COLORS[i] }}
+            />
+            {label}
+          </span>
+        ))}
       </div>
     </div>
   );

@@ -11,6 +11,33 @@ type Season = {
   status: string;
 };
 
+type EnrollmentMember = {
+  memberSeasonId: string;
+  name: string;
+  email: string;
+  sleeperUsername: string | null;
+  enrollmentStatus: string;
+  inviteSentAt: string | null;
+  reminderSentAt: string | null;
+  sleeperRosterId: string | null;
+};
+
+type EnrollmentLeague = {
+  leagueId: string;
+  leagueName: string;
+  leagueShortName: string;
+  leagueColor: string;
+  sleeperLeagueId: string | null;
+  sleeperInviteLink: string | null;
+  lastCheckAt: string | null;
+  members: EnrollmentMember[];
+};
+
+type EnrollmentData = {
+  leagues: EnrollmentLeague[];
+  summary: { totalMembers: number; enrolled: number; invited: number; pending: number };
+};
+
 type TeamRoster = {
   memberSeasonId: string;
   teamName: string;
@@ -80,9 +107,17 @@ const ALL_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
 export default function SituationRoomPage() {
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState<Season | null>(null);
+  const [phase, setPhase] = useState<string>('idle');
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [enrollment, setEnrollment] = useState<EnrollmentData | null>(null);
   const [expandedBoard, setExpandedBoard] = useState<string | null>(null);
+
+  // Enrollment UI state
+  const [linkInputs, setLinkInputs] = useState<Record<string, { leagueId: string; inviteLink: string }>>({});
+  const [sendingInvites, setSendingInvites] = useState<Record<string, boolean>>({});
+  const [checkingEnrollment, setCheckingEnrollment] = useState(false);
+  const [enrollmentMessage, setEnrollmentMessage] = useState<string | null>(null);
 
   // Filter state
   const [leagueFilters, setLeagueFilters] = useState<Set<string>>(new Set());
@@ -97,8 +132,10 @@ export default function SituationRoomPage() {
     }
     const data = await res.json();
     setSeason(data.season);
+    setPhase(data.phase || 'idle');
     setDrafts(data.drafts || []);
     setActivity(data.recentActivity || []);
+    setEnrollment(data.enrollment || null);
     setLoading(false);
   }, []);
 
@@ -113,11 +150,11 @@ export default function SituationRoomPage() {
     }
   }, [drafts, leagueFilters.size]);
 
-  // Auto-refresh every 15 seconds
+  // Auto-refresh: 30s for enrollment, 15s for drafting
   useEffect(() => {
-    const interval = setInterval(fetchData, 15000);
+    const interval = setInterval(fetchData, phase === 'enrollment' ? 30000 : 15000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, phase]);
 
   // Realtime subscriptions
   useEffect(() => {
@@ -215,6 +252,55 @@ export default function SituationRoomPage() {
     });
   }
 
+  // Enrollment handlers
+  async function handleLinkLeague(leagueId: string) {
+    const input = linkInputs[leagueId];
+    if (!input?.leagueId && !input?.inviteLink) return;
+    const res = await fetch('/api/admin/enrollment/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId, sleeperLeagueId: input.leagueId, sleeperInviteLink: input.inviteLink }),
+    });
+    if (res.ok) {
+      setLinkInputs((prev) => ({ ...prev, [leagueId]: { leagueId: '', inviteLink: '' } }));
+      fetchData();
+    }
+  }
+
+  async function handleSendEmails(leagueId: string, type: 'invite' | 'reminder') {
+    setSendingInvites((prev) => ({ ...prev, [leagueId]: true }));
+    setEnrollmentMessage(null);
+    const res = await fetch('/api/admin/enrollment/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId, type }),
+    });
+    const data = await res.json();
+    setSendingInvites((prev) => ({ ...prev, [leagueId]: false }));
+    if (res.ok) {
+      setEnrollmentMessage(`${type === 'invite' ? 'Invites' : 'Reminders'} sent: ${data.sent}${data.failed ? `, ${data.failed} failed` : ''}`);
+      fetchData();
+    }
+  }
+
+  async function handleCheckEnrollment(leagueId?: string) {
+    if (!season) return;
+    setCheckingEnrollment(true);
+    setEnrollmentMessage(null);
+    const res = await fetch('/api/admin/enrollment/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seasonId: season.id, leagueId }),
+    });
+    const data = await res.json();
+    setCheckingEnrollment(false);
+    if (res.ok && data.results) {
+      const total = data.results.reduce((a: number, r: { newEnrollments: number }) => a + r.newEnrollments, 0);
+      setEnrollmentMessage(total > 0 ? `Found ${total} new enrollment${total !== 1 ? 's' : ''}!` : 'No new enrollments detected');
+      fetchData();
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -235,6 +321,223 @@ export default function SituationRoomPage() {
     );
   }
 
+  // ──────────────────────────────────────────────
+  // ENROLLMENT PHASE
+  // ──────────────────────────────────────────────
+  if (phase === 'enrollment' && enrollment) {
+    const { summary, leagues: enrollLeagues } = enrollment;
+    const enrollProgress = summary.totalMembers > 0 ? Math.round((summary.enrolled / summary.totalMembers) * 100) : 0;
+    const allEnrolled = summary.enrolled === summary.totalMembers && summary.totalMembers > 0;
+
+    return (
+      <div className="space-y-6">
+        <Link href="/admin" className="text-primary text-sm hover:underline">&larr; Back to Command Center</Link>
+
+        {/* Top Bar */}
+        <div className="glass-card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-extrabold text-white">Situation Room</h1>
+              <p className="text-text-muted text-sm">
+                Season {season.season_number} ({season.year}) &middot; Enrollment Phase
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-white font-mono text-sm">{summary.enrolled}/{summary.totalMembers} enrolled</p>
+                <p className="text-text-muted text-xs">{summary.invited} invited &middot; {summary.pending} pending</p>
+              </div>
+              <div className="w-24 bg-bg-tertiary rounded-full h-3">
+                <div
+                  className="h-3 rounded-full bg-green-500 transition-all"
+                  style={{ width: `${enrollProgress}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Status message */}
+        {enrollmentMessage && (
+          <div className="glass-card p-3 text-center">
+            <p className="text-sm text-white">{enrollmentMessage}</p>
+          </div>
+        )}
+
+        {/* All enrolled banner */}
+        {allEnrolled && (
+          <div className="glass-card p-4 text-center border border-green-500/30 bg-green-500/5">
+            <p className="text-green-300 font-bold text-lg">All members enrolled!</p>
+            <p className="text-text-muted text-sm mt-1">Everyone has joined their Sleeper league. Ready for draft setup.</p>
+            <Link href="/admin/season-setup" className="inline-block mt-3 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors">
+              Continue to Draft Setup
+            </Link>
+          </div>
+        )}
+
+        {/* Page-level actions */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleCheckEnrollment()}
+            disabled={checkingEnrollment}
+            className="px-3 py-1.5 bg-primary/20 text-primary rounded-lg text-sm font-semibold hover:bg-primary/30 transition-colors disabled:opacity-50"
+          >
+            {checkingEnrollment ? 'Checking...' : 'Check All Leagues'}
+          </button>
+        </div>
+
+        {/* League Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {enrollLeagues.map((league) => {
+            const enrolled = league.members.filter((m) => m.enrollmentStatus === 'enrolled').length;
+            const total = league.members.length;
+            const progress = total > 0 ? Math.round((enrolled / total) * 100) : 0;
+            const isLinked = !!league.sleeperLeagueId;
+            const hasInviteLink = !!league.sleeperInviteLink;
+            const input = linkInputs[league.leagueId] || { leagueId: '', inviteLink: '' };
+            const isSending = sendingInvites[league.leagueId];
+            const pendingInvites = league.members.filter((m) => !m.inviteSentAt).length;
+            const pendingReminders = league.members.filter((m) => m.inviteSentAt && m.enrollmentStatus !== 'enrolled').length;
+
+            return (
+              <div key={league.leagueId} className="glass-card p-4 space-y-3" style={{ borderTop: `3px solid ${league.leagueColor}` }}>
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-white font-bold">{league.leagueName}</h3>
+                  {isLinked && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">Sleeper Linked</span>
+                  )}
+                </div>
+
+                {/* Progress ring */}
+                <div className="flex items-center gap-3">
+                  <div className="relative w-14 h-14">
+                    <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
+                      <path className="text-bg-tertiary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none" stroke="currentColor" strokeWidth="3" />
+                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none" stroke={league.leagueColor} strokeWidth="3"
+                        strokeDasharray={`${progress}, 100`} strokeLinecap="round" />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-mono font-bold">
+                      {progress}%
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-white font-mono text-sm">{enrolled}/{total} enrolled</p>
+                    {league.lastCheckAt && (
+                      <p className="text-text-muted text-xs">Checked {timeAgo(league.lastCheckAt)}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Link Sleeper league (if not linked) */}
+                {!isLinked && (
+                  <div className="space-y-2 p-3 rounded-lg bg-bg-tertiary/50">
+                    <p className="text-text-muted text-xs font-semibold uppercase tracking-wider">Link to Sleeper</p>
+                    <input
+                      type="text"
+                      value={input.leagueId}
+                      onChange={(e) => setLinkInputs((prev) => ({ ...prev, [league.leagueId]: { ...input, leagueId: e.target.value } }))}
+                      placeholder="Sleeper League ID or URL"
+                      className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-none focus:border-primary"
+                    />
+                    <input
+                      type="text"
+                      value={input.inviteLink}
+                      onChange={(e) => setLinkInputs((prev) => ({ ...prev, [league.leagueId]: { ...input, inviteLink: e.target.value } }))}
+                      placeholder="Sleeper invite link (sleeper.com/i/...)"
+                      className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-none focus:border-primary"
+                    />
+                    <button
+                      onClick={() => handleLinkLeague(league.leagueId)}
+                      className="w-full px-3 py-1.5 bg-primary text-white rounded text-sm font-semibold hover:bg-primary-dark transition-colors"
+                    >
+                      Link League
+                    </button>
+                  </div>
+                )}
+
+                {/* Invite link input if linked but no invite link */}
+                {isLinked && !hasInviteLink && (
+                  <div className="space-y-2 p-3 rounded-lg bg-bg-tertiary/50">
+                    <p className="text-text-muted text-xs font-semibold uppercase tracking-wider">Add Invite Link</p>
+                    <input
+                      type="text"
+                      value={input.inviteLink}
+                      onChange={(e) => setLinkInputs((prev) => ({ ...prev, [league.leagueId]: { ...input, inviteLink: e.target.value } }))}
+                      placeholder="Sleeper invite link (sleeper.com/i/...)"
+                      className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-none focus:border-primary"
+                    />
+                    <button
+                      onClick={() => handleLinkLeague(league.leagueId)}
+                      className="w-full px-3 py-1.5 bg-primary text-white rounded text-sm font-semibold hover:bg-primary-dark transition-colors"
+                    >
+                      Save Link
+                    </button>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                {hasInviteLink && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSendEmails(league.leagueId, 'invite')}
+                      disabled={isSending || pendingInvites === 0}
+                      className="flex-1 px-3 py-1.5 bg-green-500/20 text-green-300 rounded text-xs font-semibold hover:bg-green-500/30 transition-colors disabled:opacity-40"
+                    >
+                      {isSending ? 'Sending...' : `Send Invites (${pendingInvites})`}
+                    </button>
+                    <button
+                      onClick={() => handleSendEmails(league.leagueId, 'reminder')}
+                      disabled={isSending || pendingReminders === 0}
+                      className="flex-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded text-xs font-semibold hover:bg-yellow-500/30 transition-colors disabled:opacity-40"
+                    >
+                      Remind ({pendingReminders})
+                    </button>
+                    <button
+                      onClick={() => handleCheckEnrollment(league.leagueId)}
+                      disabled={checkingEnrollment}
+                      className="px-3 py-1.5 bg-blue-500/20 text-blue-300 rounded text-xs font-semibold hover:bg-blue-500/30 transition-colors disabled:opacity-40"
+                    >
+                      Check
+                    </button>
+                  </div>
+                )}
+
+                {/* Member list */}
+                <div className="space-y-1">
+                  {league.members.map((member) => {
+                    const statusDot = member.enrollmentStatus === 'enrolled'
+                      ? 'bg-green-400' : member.enrollmentStatus === 'invited'
+                      ? 'bg-yellow-400' : 'bg-gray-500';
+                    const statusLabel = member.enrollmentStatus === 'enrolled'
+                      ? 'Enrolled' : member.enrollmentStatus === 'invited'
+                      ? 'Invited' : 'Pending';
+
+                    return (
+                      <div key={member.memberSeasonId} className="flex items-center gap-2 py-1">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDot}`} />
+                        <span className="text-white text-sm flex-1">{member.name}</span>
+                        {member.sleeperUsername && (
+                          <span className="text-text-muted text-xs">@{member.sleeperUsername}</span>
+                        )}
+                        <span className="text-text-muted text-xs">{statusLabel}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // DRAFTING PHASE (existing)
+  // ──────────────────────────────────────────────
   const activeDrafts = drafts.filter((d) => d.status === 'drafting' || d.status === 'paused');
   const totalPicks = drafts.reduce((a, d) => a + d.totalPicks, 0);
   const totalMade = drafts.reduce((a, d) => a + d.picksMade, 0);

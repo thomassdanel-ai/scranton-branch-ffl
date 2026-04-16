@@ -7,17 +7,17 @@ export async function GET() {
     await requireAuth();
     const supabase = createServiceClient();
 
-    // Find the drafting/active season
+    // Find the drafting/active season (include confirming for enrollment phase)
     const { data: season } = await supabase
       .from('seasons')
       .select('id, season_number, year, status')
-      .in('status', ['drafting', 'active', 'pre_draft'])
+      .in('status', ['drafting', 'active', 'pre_draft', 'confirming'])
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
 
     if (!season) {
-      return NextResponse.json({ season: null, drafts: [], recentActivity: [] });
+      return NextResponse.json({ season: null, phase: 'idle', drafts: [], recentActivity: [] });
     }
 
     // Fetch all draft boards for this season (non-mock)
@@ -27,8 +27,87 @@ export async function GET() {
       .eq('season_id', season.id)
       .eq('is_mock', false);
 
+    // Determine phase: enrollment vs drafting
+    const activeDraftBoards = (boards || []).filter(
+      (b) => b.status === 'drafting' || b.status === 'completed'
+    );
+    const hasDrafting = activeDraftBoards.length > 0;
+
+    // Check if we have leagues + member_seasons for enrollment phase
+    const { data: seasonLeagues } = await supabase
+      .from('leagues')
+      .select('id')
+      .eq('season_id', season.id)
+      .limit(1);
+
+    const { count: memberSeasonCount } = await supabase
+      .from('member_seasons')
+      .select('id', { count: 'exact', head: true })
+      .eq('season_id', season.id);
+
+    const hasLeaguesAndMembers = (seasonLeagues?.length ?? 0) > 0 && (memberSeasonCount ?? 0) > 0;
+    const phase = hasDrafting ? 'drafting' : hasLeaguesAndMembers ? 'enrollment' : 'idle';
+
+    // If enrollment phase, return enrollment data
+    if (phase === 'enrollment') {
+      const { data: leagues } = await supabase
+        .from('leagues')
+        .select('id, name, short_name, color, sleeper_league_id, sleeper_invite_link, last_enrollment_check_at')
+        .eq('season_id', season.id);
+
+      const { data: memberSeasons } = await supabase
+        .from('member_seasons')
+        .select('id, league_id, enrollment_status, invite_sent_at, reminder_sent_at, sleeper_roster_id, members(full_name, email, sleeper_username)')
+        .eq('season_id', season.id);
+
+      const enrollmentLeagues = (leagues || []).map((league) => {
+        const members = (memberSeasons || [])
+          .filter((ms) => ms.league_id === league.id)
+          .map((ms) => {
+            const member = ms.members as unknown as { full_name: string; email: string; sleeper_username: string | null } | null;
+            return {
+              memberSeasonId: ms.id,
+              name: member?.full_name ?? 'Unknown',
+              email: member?.email ?? '',
+              sleeperUsername: member?.sleeper_username ?? null,
+              enrollmentStatus: ms.enrollment_status ?? 'pending',
+              inviteSentAt: ms.invite_sent_at,
+              reminderSentAt: ms.reminder_sent_at,
+              sleeperRosterId: ms.sleeper_roster_id,
+            };
+          });
+
+        return {
+          leagueId: league.id,
+          leagueName: league.name,
+          leagueShortName: league.short_name,
+          leagueColor: league.color || '#6b7280',
+          sleeperLeagueId: league.sleeper_league_id,
+          sleeperInviteLink: league.sleeper_invite_link,
+          lastCheckAt: league.last_enrollment_check_at,
+          members,
+        };
+      });
+
+      const allMembers = enrollmentLeagues.flatMap((l) => l.members);
+      const summary = {
+        totalMembers: allMembers.length,
+        enrolled: allMembers.filter((m) => m.enrollmentStatus === 'enrolled').length,
+        invited: allMembers.filter((m) => m.enrollmentStatus === 'invited').length,
+        pending: allMembers.filter((m) => m.enrollmentStatus === 'pending').length,
+      };
+
+      return NextResponse.json({
+        season,
+        phase,
+        enrollment: { leagues: enrollmentLeagues, summary },
+        drafts: [],
+        recentActivity: [],
+      });
+    }
+
     if (!boards || boards.length === 0) {
-      return NextResponse.json({ season, drafts: [], recentActivity: [] });
+      return NextResponse.json({ season, phase, drafts: [], recentActivity: [] });
     }
 
     // Fetch leagues
@@ -204,6 +283,7 @@ export async function GET() {
 
     return NextResponse.json({
       season,
+      phase,
       drafts,
       recentActivity,
     });
