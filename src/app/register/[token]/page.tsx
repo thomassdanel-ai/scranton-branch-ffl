@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 
 type CohortInfo = {
   name: string;
@@ -10,7 +10,8 @@ type CohortInfo = {
   registeredCount: number;
 };
 
-export default function RegisterPage({ params }: { params: { token: string } }) {
+export default function RegisterPage(props: { params: Promise<{ token: string }> }) {
+  const params = use(props.params);
   const [cohort, setCohort] = useState<CohortInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

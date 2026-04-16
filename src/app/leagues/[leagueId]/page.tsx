@@ -4,10 +4,11 @@ import { getLeagueStandings } from '@/lib/sleeper/league-data';
 import StandingsTable from '@/components/leagues/StandingsTable';
 
 interface Props {
-  params: { leagueId: string };
+  params: Promise<{ leagueId: string }>;
 }
 
-export default async function LeagueStandingsPage({ params }: Props) {
+export default async function LeagueStandingsPage(props: Props) {
+  const params = await props.params;
   const league = await findLeagueBySleeperIdAsync(params.leagueId);
   if (!league) notFound();
 

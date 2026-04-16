@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     // Set identity cookie
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.set(MEMBER_COOKIE, member.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE: Clear identity cookie
 export async function DELETE() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   cookieStore.set(MEMBER_COOKIE, '', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

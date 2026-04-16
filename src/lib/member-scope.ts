@@ -19,7 +19,7 @@ export type MemberScope = {
  * Used by server components and API routes.
  */
 export async function getMemberScope(): Promise<MemberScope | null> {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const memberId = cookieStore.get(MEMBER_COOKIE)?.value;
   if (!memberId) return null;
 

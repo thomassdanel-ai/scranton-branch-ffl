@@ -8,11 +8,13 @@ import MatchupCard from '@/components/leagues/MatchupCard';
 import LiveScoreIndicator from '@/components/leagues/LiveScoreIndicator';
 
 interface Props {
-  params: { leagueId: string };
-  searchParams: { week?: string };
+  params: Promise<{ leagueId: string }>;
+  searchParams: Promise<{ week?: string }>;
 }
 
-export default async function MatchupsPage({ params, searchParams }: Props) {
+export default async function MatchupsPage(props: Props) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const league = await findLeagueBySleeperIdAsync(params.leagueId);
   if (!league) notFound();
 

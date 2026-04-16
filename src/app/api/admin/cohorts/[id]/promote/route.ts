@@ -4,10 +4,8 @@ import { requireAuth, AuthError } from '@/lib/auth';
 import { requireCohortAccess } from '@/lib/auth-scope';
 
 // POST: Promote waitlisted members to confirmed
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireAuth();
     await requireCohortAccess(user, params.id);

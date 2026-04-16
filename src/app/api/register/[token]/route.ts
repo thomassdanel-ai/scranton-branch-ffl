@@ -3,10 +3,8 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { callerIp, isRateLimited } from '@/lib/rate-limit';
 
 // GET: Return cohort info for a registration page (public, no auth)
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { token: string } }
-) {
+export async function GET(req: NextRequest, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   // Rate-limit per IP (SECURITY_REVIEW #8). Tokens are 128-bit so brute force
   // is infeasible, but we throttle anyway to cheaply mitigate guessing / enum.
   const ip = callerIp(req);
@@ -50,10 +48,8 @@ export async function GET(
 }
 
 // POST: Register for a cohort (public, no auth)
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { token: string } }
-) {
+export async function POST(req: NextRequest, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   // Stricter limit than GET — registration writes and we don't want a single IP
   // able to flood season_registrations / members with junk submissions.
   const ip = callerIp(req);

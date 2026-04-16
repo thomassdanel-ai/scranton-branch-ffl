@@ -4,10 +4,8 @@ import { createServiceClient } from '@/lib/supabase/server';
 /**
  * GET: Fetch a single archived season by archive ID.
  */
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createServiceClient();
 
   const { data, error } = await supabase

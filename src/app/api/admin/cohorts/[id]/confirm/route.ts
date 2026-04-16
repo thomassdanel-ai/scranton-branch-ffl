@@ -4,10 +4,8 @@ import { requireAuth, AuthError } from '@/lib/auth';
 import { requireCohortAccess } from '@/lib/auth-scope';
 
 // POST: Send confirmation requests — mark 'registered' members as needing confirmation
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireAuth();
     await requireCohortAccess(user, params.id);

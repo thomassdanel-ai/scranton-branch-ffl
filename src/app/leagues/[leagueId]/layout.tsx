@@ -4,11 +4,12 @@ import LeagueNav from '@/components/leagues/LeagueNav';
 import type { Metadata } from 'next';
 
 interface Props {
-  params: { leagueId: string };
+  params: Promise<{ leagueId: string }>;
   children: React.ReactNode;
 }
 
-export async function generateMetadata({ params }: { params: { leagueId: string } }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<{ leagueId: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const league = await findLeagueBySleeperIdAsync(params.leagueId);
   if (!league) return {};
   return {
@@ -16,7 +17,13 @@ export async function generateMetadata({ params }: { params: { leagueId: string 
   };
 }
 
-export default async function LeagueLayout({ params, children }: Props) {
+export default async function LeagueLayout(props: Props) {
+  const params = await props.params;
+
+  const {
+    children
+  } = props;
+
   const league = await findLeagueBySleeperIdAsync(params.leagueId);
   if (!league) notFound();
 

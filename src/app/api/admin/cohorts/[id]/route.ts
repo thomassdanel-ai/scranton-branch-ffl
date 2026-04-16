@@ -27,10 +27,8 @@ const PutSchema = z
   .strict();
 
 // PUT: Update cohort (name, color, status, settings)
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireAuth();
     await requireCohortAccess(user, params.id);
