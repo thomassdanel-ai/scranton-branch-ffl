@@ -11,12 +11,12 @@ export default function RecapsLoading() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-5 w-48 bg-bg-tertiary rounded animate-pulse" />
-              <div className="h-4 w-16 bg-bg-tertiary rounded animate-pulse" />
+              <div className="h-5 w-48 bg-bg-tertiary rounded-sm animate-pulse" />
+              <div className="h-4 w-16 bg-bg-tertiary rounded-sm animate-pulse" />
             </div>
             <div className="flex items-center gap-2">
               <div className="h-5 w-20 bg-bg-tertiary rounded-full animate-pulse" />
-              <div className="h-4 w-24 bg-bg-tertiary rounded animate-pulse" />
+              <div className="h-4 w-24 bg-bg-tertiary rounded-sm animate-pulse" />
             </div>
           </div>
         </div>

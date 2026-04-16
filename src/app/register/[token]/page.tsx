@@ -116,7 +116,7 @@ export default function RegisterPage(props: { params: Promise<{ token: string }>
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           placeholder="Full name"
-          className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary"
+          className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-hidden focus:border-primary"
           autoFocus
           required
         />
@@ -125,7 +125,7 @@ export default function RegisterPage(props: { params: Promise<{ token: string }>
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
-          className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary"
+          className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-hidden focus:border-primary"
           required
         />
 
@@ -138,7 +138,7 @@ export default function RegisterPage(props: { params: Promise<{ token: string }>
               value={sleeperUsername}
               onChange={(e) => setSleeperUsername(e.target.value)}
               placeholder="Sleeper username"
-              className="w-full px-2 py-2 bg-transparent text-white placeholder-text-muted focus:outline-none"
+              className="w-full px-2 py-2 bg-transparent text-white placeholder-text-muted focus:outline-hidden"
             />
           </div>
           <p className="text-text-muted text-xs">
@@ -167,7 +167,7 @@ export default function RegisterPage(props: { params: Promise<{ token: string }>
                 { step: 3, title: 'Find your username', desc: 'Your username is shown below your display name. It starts with @.' },
               ].map(({ step, title, desc }) => (
                 <div key={step} className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center">
+                  <div className="shrink-0 w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center">
                     {step}
                   </div>
                   <div className="space-y-1.5">

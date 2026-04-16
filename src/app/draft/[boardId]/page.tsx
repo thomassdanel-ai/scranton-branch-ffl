@@ -306,8 +306,8 @@ export default function PublicDraftBoard() {
 
                       return (
                         <td key={ms.id} className={`text-center py-1 px-1 transition-all duration-300 ${
-                          isCurrent ? 'bg-primary/20 ring-1 ring-primary rounded' :
-                          isNew ? 'bg-accent-green/20 ring-1 ring-accent-green rounded' : ''
+                          isCurrent ? 'bg-primary/20 ring-1 ring-primary rounded-sm' :
+                          isNew ? 'bg-accent-green/20 ring-1 ring-accent-green rounded-sm' : ''
                         }`}>
                           {pick?.player_name ? (
                             <div>

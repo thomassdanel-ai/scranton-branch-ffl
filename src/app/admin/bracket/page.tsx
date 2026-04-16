@@ -423,7 +423,7 @@ export default function BracketManagerPage() {
             max={18}
             value={playoffStartWeek}
             onChange={(e) => setPlayoffStartWeek(parseInt(e.target.value) || 15)}
-            className="w-20 px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
+            className="w-20 px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-hidden focus:border-primary"
           />
           <span className="text-xs text-text-muted">
             Needed for auto-pulling scores from Sleeper
@@ -487,7 +487,7 @@ export default function BracketManagerPage() {
               type="text"
               value={seasonYear}
               onChange={(e) => setSeasonYear(e.target.value)}
-              className="w-24 px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+              className="w-24 px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
             />
           </div>
         </div>
@@ -516,7 +516,7 @@ export default function BracketManagerPage() {
                         setManualSlots(updated);
                       }}
                       placeholder={seedNum === 1 ? '#1 seed (bye week 1)' : `#${seedNum} seed`}
-                      className="flex-1 px-3 py-2 rounded bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                      className="flex-1 px-3 py-2 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
                     />
                     {seedNum === 1 && <span className="text-xs text-accent-gold">BYE</span>}
                   </div>
@@ -615,7 +615,7 @@ export default function BracketManagerPage() {
             setPlayoffStartWeek(week);
             setBracket({ ...bracket, playoffStartWeek: week });
           }}
-          className="w-20 px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
+          className="w-20 px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-hidden focus:border-primary"
         />
         <span className="text-xs text-text-muted">
           Week 1 = NFL Wk {bracket.playoffStartWeek ?? playoffStartWeek},
@@ -684,7 +684,7 @@ export default function BracketManagerPage() {
                     placeholder="Score"
                     value={matchup.team1Score ?? ''}
                     onChange={(e) => updateMatchupScore(matchup.id, 'team1Score', e.target.value)}
-                    className="w-24 px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
+                    className="w-24 px-3 py-1.5 rounded-sm bg-bg-secondary border border-white/10 text-white text-sm stat focus:outline-hidden focus:border-primary"
                   />
                 </div>
 
@@ -714,7 +714,7 @@ export default function BracketManagerPage() {
                     placeholder="Score"
                     value={matchup.team2Score ?? ''}
                     onChange={(e) => updateMatchupScore(matchup.id, 'team2Score', e.target.value)}
-                    className="w-24 px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm stat focus:outline-none focus:border-primary"
+                    className="w-24 px-3 py-1.5 rounded-sm bg-bg-secondary border border-white/10 text-white text-sm stat focus:outline-hidden focus:border-primary"
                   />
                 </div>
 

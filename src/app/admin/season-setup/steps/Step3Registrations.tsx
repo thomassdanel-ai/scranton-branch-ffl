@@ -174,7 +174,7 @@ export default function Step3Registrations({
             {hasLoadedRegs && regs.length > 0 && (
               <div className="space-y-1">
                 {regs.map((reg) => (
-                  <div key={reg.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-bg-tertiary/30">
+                  <div key={reg.id} className="flex items-center justify-between py-1.5 px-2 rounded-sm bg-bg-tertiary/30">
                     <span className="text-text-secondary text-xs">
                       {reg.members?.display_name || reg.members?.full_name}
                       <span className="text-text-muted ml-1">({reg.members?.email})</span>

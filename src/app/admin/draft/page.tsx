@@ -359,7 +359,7 @@ export default function DraftPage() {
                       const isCurrent = pick && activeBoard.current_round === round && activeBoard.current_pick === colIdx + 1 && (isDrafting || isPaused);
 
                       return (
-                        <td key={ms.id} className={`text-center py-1.5 px-1 ${isCurrent ? 'bg-primary/20 ring-1 ring-primary rounded' : ''}`}>
+                        <td key={ms.id} className={`text-center py-1.5 px-1 ${isCurrent ? 'bg-primary/20 ring-1 ring-primary rounded-sm' : ''}`}>
                           {pick?.player_name ? (
                             <div>
                               <p className="text-white text-xs font-semibold truncate">{pick.player_name}</p>
@@ -503,7 +503,7 @@ export default function DraftPage() {
           {boards.filter((b) => !b.is_mock).map((b) => (
             <div key={b.id} className="flex items-center gap-2 mb-1">
               <span className="text-white text-sm">{getLeagueName(b.league_id)}:</span>
-              <code className="text-xs text-primary bg-bg-tertiary px-2 py-1 rounded">/draft/{b.id}</code>
+              <code className="text-xs text-primary bg-bg-tertiary px-2 py-1 rounded-sm">/draft/{b.id}</code>
             </div>
           ))}
         </div>

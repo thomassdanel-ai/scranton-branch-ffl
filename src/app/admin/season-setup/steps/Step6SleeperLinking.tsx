@@ -182,7 +182,7 @@ export default function Step6SleeperLinking({
                   setSleeperLinks((prev) => ({ ...prev, [league.id]: val }));
                 }}
                 placeholder="Sleeper League URL or ID"
-                className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
               />
               <button
                 onClick={() => {
@@ -221,7 +221,7 @@ export default function Step6SleeperLinking({
                             }));
                           }
                         }}
-                        className="flex-1 px-2 py-1 rounded bg-bg-tertiary border border-white/10 text-white text-xs"
+                        className="flex-1 px-2 py-1 rounded-sm bg-bg-tertiary border border-white/10 text-white text-xs"
                       >
                         <option value="">Select roster...</option>
                         {sleeperRosters[league.id].map((r) => (
@@ -243,7 +243,7 @@ export default function Step6SleeperLinking({
                   value={sleeperDraftIds[league.id] || ''}
                   onChange={(e) => setSleeperDraftIds((prev) => ({ ...prev, [league.id]: e.target.value.trim() }))}
                   placeholder="Sleeper Draft ID"
-                  className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                  className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
                 />
                 <button
                   onClick={() => linkDraft(league.id)}

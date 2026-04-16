@@ -89,7 +89,7 @@ export default function Nav() {
                 <Link
                   key={league.sleeperId || league.dbId}
                   href={`/leagues/${league.sleeperId}`}
-                  className="px-2.5 py-1 rounded-full text-[10.5px] font-mono font-semibold tracking-[0.12em] uppercase transition-all hover:-translate-y-[1px]"
+                  className="px-2.5 py-1 rounded-full text-[10.5px] font-mono font-semibold tracking-[0.12em] uppercase transition-all hover:-translate-y-px"
                   style={{
                     backgroundColor: `${league.color}1a`,
                     color: league.color,

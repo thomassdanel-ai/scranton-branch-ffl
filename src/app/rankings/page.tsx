@@ -79,7 +79,7 @@ export default async function PowerRankingsPage() {
                       {f.weight}
                     </span>
                   </div>
-                  <div className="mt-2 h-[3px] rounded-full bg-white/[0.05] overflow-hidden">
+                  <div className="mt-2 h-[3px] rounded-full bg-white/5 overflow-hidden">
                     <div
                       className="h-full rounded-full"
                       style={{ width: `${f.weight * 2.5}%`, backgroundColor: f.color }}

@@ -182,7 +182,7 @@ export default function Step4ConfigureAndAssign({
                 setLeagueNames(DEFAULT_LEAGUE_NAMES.slice(0, n));
                 setRosterSize(Math.min(16, Math.max(4, Math.ceil(confirmedMemberCount / n))));
               }}
-              className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+              className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
             >
               {[1, 2, 3, 4].map((n) => (
                 <option key={n} value={n}>{n}</option>
@@ -197,7 +197,7 @@ export default function Step4ConfigureAndAssign({
               onChange={(e) => setRosterSize(Number(e.target.value))}
               min={4}
               max={16}
-              className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+              className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
             />
           </div>
         </div>
@@ -226,7 +226,7 @@ export default function Step4ConfigureAndAssign({
                   setLeagueNames(u);
                 }}
                 placeholder={`League ${i + 1}`}
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
               />
             ))}
           </div>

@@ -146,7 +146,7 @@ export default function MemberDetailPage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
-              className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary resize-none"
+              className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary resize-none"
               autoFocus
             />
             <div className="flex gap-2 justify-end">

@@ -103,7 +103,7 @@ export default function Step1StartSeason({ season, nextSeasonNumber, flash, onCo
                       value={resetPhrase}
                       onChange={(e) => setResetPhrase(e.target.value)}
                       placeholder={expectedPhrase}
-                      className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm font-mono focus:outline-none focus:border-accent-red"
+                      className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm font-mono focus:outline-hidden focus:border-accent-red"
                     />
                   </div>
                   <button
@@ -175,7 +175,7 @@ export default function Step1StartSeason({ season, nextSeasonNumber, flash, onCo
             onChange={(e) => setYear(Number(e.target.value))}
             min={2020}
             max={2040}
-            className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+            className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
           />
         </div>
       </div>

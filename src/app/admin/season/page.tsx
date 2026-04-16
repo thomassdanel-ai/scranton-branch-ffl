@@ -166,7 +166,7 @@ export default function SeasonManagementPage() {
             value={year}
             onChange={(e) => setYear(e.target.value)}
             disabled={isWizardManaged}
-            className="w-32 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-none focus:border-primary stat disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-32 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-hidden focus:border-primary stat disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
       </div>
@@ -216,7 +216,7 @@ export default function SeasonManagementPage() {
                   onChange={(e) => updateLeague(i, 'name', e.target.value)}
                   disabled={isWizardManaged}
                   placeholder="Sales"
-                  className="w-full px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-1.5 rounded-sm bg-bg-secondary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -227,7 +227,7 @@ export default function SeasonManagementPage() {
                   onChange={(e) => updateLeague(i, 'shortName', e.target.value)}
                   disabled={isWizardManaged}
                   placeholder="Sales"
-                  className="w-full px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-1.5 rounded-sm bg-bg-secondary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -243,7 +243,7 @@ export default function SeasonManagementPage() {
                 onChange={(e) => updateLeague(i, 'id', e.target.value)}
                 disabled={isWizardManaged}
                 placeholder="1260755589445718016"
-                className="w-full px-3 py-1.5 rounded bg-bg-secondary border border-white/10 text-white text-sm font-mono focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-3 py-1.5 rounded-sm bg-bg-secondary border border-white/10 text-white text-sm font-mono focus:outline-hidden focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -255,7 +255,7 @@ export default function SeasonManagementPage() {
                   value={league.color}
                   onChange={(e) => updateLeague(i, 'color', e.target.value)}
                   disabled={isWizardManaged}
-                  className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-8 h-8 rounded-sm cursor-pointer bg-transparent border-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span className="text-xs text-text-muted font-mono">{league.color}</span>
               </div>
@@ -284,7 +284,7 @@ export default function SeasonManagementPage() {
               })
             }
             disabled={isWizardManaged}
-            className="w-20 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-none focus:border-primary stat disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-20 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-hidden focus:border-primary stat disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
       </div>

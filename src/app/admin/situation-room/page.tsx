@@ -440,18 +440,18 @@ export default function SituationRoomPage() {
                       value={input.leagueId}
                       onChange={(e) => setLinkInputs((prev) => ({ ...prev, [league.leagueId]: { ...input, leagueId: e.target.value } }))}
                       placeholder="Sleeper League ID or URL"
-                      className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-none focus:border-primary"
+                      className="w-full px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-hidden focus:border-primary"
                     />
                     <input
                       type="text"
                       value={input.inviteLink}
                       onChange={(e) => setLinkInputs((prev) => ({ ...prev, [league.leagueId]: { ...input, inviteLink: e.target.value } }))}
                       placeholder="Sleeper invite link (sleeper.com/i/...)"
-                      className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-none focus:border-primary"
+                      className="w-full px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-hidden focus:border-primary"
                     />
                     <button
                       onClick={() => handleLinkLeague(league.leagueId)}
-                      className="w-full px-3 py-1.5 bg-primary text-white rounded text-sm font-semibold hover:bg-primary-dark transition-colors"
+                      className="w-full px-3 py-1.5 bg-primary text-white rounded-sm text-sm font-semibold hover:bg-primary-dark transition-colors"
                     >
                       Link League
                     </button>
@@ -467,11 +467,11 @@ export default function SituationRoomPage() {
                       value={input.inviteLink}
                       onChange={(e) => setLinkInputs((prev) => ({ ...prev, [league.leagueId]: { ...input, inviteLink: e.target.value } }))}
                       placeholder="Sleeper invite link (sleeper.com/i/...)"
-                      className="w-full px-3 py-1.5 rounded bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-none focus:border-primary"
+                      className="w-full px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-hidden focus:border-primary"
                     />
                     <button
                       onClick={() => handleLinkLeague(league.leagueId)}
-                      className="w-full px-3 py-1.5 bg-primary text-white rounded text-sm font-semibold hover:bg-primary-dark transition-colors"
+                      className="w-full px-3 py-1.5 bg-primary text-white rounded-sm text-sm font-semibold hover:bg-primary-dark transition-colors"
                     >
                       Save Link
                     </button>
@@ -484,21 +484,21 @@ export default function SituationRoomPage() {
                     <button
                       onClick={() => handleSendEmails(league.leagueId, 'invite')}
                       disabled={isSending || pendingInvites === 0}
-                      className="flex-1 px-3 py-1.5 bg-green-500/20 text-green-300 rounded text-xs font-semibold hover:bg-green-500/30 transition-colors disabled:opacity-40"
+                      className="flex-1 px-3 py-1.5 bg-green-500/20 text-green-300 rounded-sm text-xs font-semibold hover:bg-green-500/30 transition-colors disabled:opacity-40"
                     >
                       {isSending ? 'Sending...' : `Send Invites (${pendingInvites})`}
                     </button>
                     <button
                       onClick={() => handleSendEmails(league.leagueId, 'reminder')}
                       disabled={isSending || pendingReminders === 0}
-                      className="flex-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded text-xs font-semibold hover:bg-yellow-500/30 transition-colors disabled:opacity-40"
+                      className="flex-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-sm text-xs font-semibold hover:bg-yellow-500/30 transition-colors disabled:opacity-40"
                     >
                       Remind ({pendingReminders})
                     </button>
                     <button
                       onClick={() => handleCheckEnrollment(league.leagueId)}
                       disabled={checkingEnrollment}
-                      className="px-3 py-1.5 bg-blue-500/20 text-blue-300 rounded text-xs font-semibold hover:bg-blue-500/30 transition-colors disabled:opacity-40"
+                      className="px-3 py-1.5 bg-blue-500/20 text-blue-300 rounded-sm text-xs font-semibold hover:bg-blue-500/30 transition-colors disabled:opacity-40"
                     >
                       Check
                     </button>
@@ -517,7 +517,7 @@ export default function SituationRoomPage() {
 
                     return (
                       <div key={member.memberSeasonId} className="flex items-center gap-2 py-1">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDot}`} />
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${statusDot}`} />
                         <span className="text-white text-sm flex-1">{member.name}</span>
                         {member.sleeperUsername && (
                           <span className="text-text-muted text-xs">@{member.sleeperUsername}</span>
@@ -843,7 +843,7 @@ export default function SituationRoomPage() {
               <select
                 value={roundFilter ?? ''}
                 onChange={(e) => setRoundFilter(e.target.value ? Number(e.target.value) : null)}
-                className="text-xs px-2 py-0.5 rounded bg-bg-tertiary border border-white/10 text-white"
+                className="text-xs px-2 py-0.5 rounded-sm bg-bg-tertiary border border-white/10 text-white"
               >
                 <option value="">All</option>
                 {Array.from({ length: maxRounds }, (_, i) => i + 1).map((r) => (
@@ -856,7 +856,7 @@ export default function SituationRoomPage() {
           <div className="space-y-1.5 max-h-96 overflow-y-auto">
             {filteredActivity.map((item, i) => (
               <div key={i} className="flex items-center gap-2 py-1">
-                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.leagueColor }} />
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.leagueColor }} />
                 <span className="text-text-muted text-xs font-mono w-8">#{item.overall}</span>
                 <span className={`text-xs font-semibold ${posColor[item.position] || 'text-white'}`}>{item.playerName}</span>
                 <span className="text-text-muted text-xs">{item.position}</span>

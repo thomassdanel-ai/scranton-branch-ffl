@@ -353,7 +353,7 @@ function Highlight({
 }
 
 function LegendDot({ className }: { className: string }) {
-  return <span className={`inline-block w-2.5 h-2.5 rounded-sm ${className}`} />;
+  return <span className={`inline-block w-2.5 h-2.5 rounded-xs ${className}`} />;
 }
 
 function EmptyState() {

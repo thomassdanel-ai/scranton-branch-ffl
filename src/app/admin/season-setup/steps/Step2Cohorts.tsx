@@ -166,7 +166,7 @@ export default function Step2Cohorts({ season, cohorts, flash, onComplete, isRev
                       <p className="text-text-muted text-xs">No registrations yet.</p>
                     ) : (
                       expandedRegs[cohort.id].map((reg) => (
-                        <div key={reg.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-bg-tertiary/30">
+                        <div key={reg.id} className="flex items-center justify-between py-1.5 px-2 rounded-sm bg-bg-tertiary/30">
                           <span className="text-text-secondary text-xs">
                             {reg.members?.display_name || reg.members?.full_name}
                             <span className="text-text-muted ml-1">({reg.members?.email})</span>
@@ -201,14 +201,14 @@ export default function Step2Cohorts({ season, cohorts, flash, onComplete, isRev
             onChange={(e) => setNewCohortName(e.target.value)}
             placeholder="Cohort Name *"
             required
-            className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+            className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
           />
           <div className="flex gap-2">
             <input
               type="color"
               value={newCohortColor}
               onChange={(e) => setNewCohortColor(e.target.value)}
-              className="w-10 h-10 rounded border border-white/10 bg-bg-tertiary cursor-pointer"
+              className="w-10 h-10 rounded-sm border border-white/10 bg-bg-tertiary cursor-pointer"
             />
             <input
               type="number"
@@ -216,7 +216,7 @@ export default function Step2Cohorts({ season, cohorts, flash, onComplete, isRev
               onChange={(e) => setNewCohortCapacity(e.target.value)}
               placeholder="Max Capacity"
               min={1}
-              className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+              className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
             />
           </div>
           <button

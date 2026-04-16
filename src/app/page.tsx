@@ -276,7 +276,7 @@ export default async function HomePage() {
             <Link
               key={league.sleeperId || league.dbId}
               href={`/leagues/${league.sleeperId}`}
-              className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-full transition-all hover:-translate-y-[1px]"
+              className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-full transition-all hover:-translate-y-px"
               style={{
                 backgroundColor: `${league.color}12`,
                 border: `1px solid ${league.color}55`,
@@ -370,7 +370,7 @@ export default async function HomePage() {
                           return (
                             <div
                               key={i}
-                              className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/[0.02] transition-colors"
+                              className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/2 transition-colors"
                             >
                               <span
                                 className={`truncate flex-1 text-[13px] ${
@@ -505,7 +505,7 @@ export default async function HomePage() {
                   )}
 
                   <div className="mt-auto pt-4">
-                    <div className="h-1 w-full rounded-full bg-white/[0.05] overflow-hidden mb-4">
+                    <div className="h-1 w-full rounded-full bg-white/5 overflow-hidden mb-4">
                       <div
                         className="h-full rounded-full"
                         style={{

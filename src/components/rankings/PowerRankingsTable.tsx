@@ -139,7 +139,7 @@ export default function PowerRankingsTable({ rankings }: Props) {
             </div>
 
             {/* Score breakdown bar */}
-            <div className="mt-4 flex h-[3px] rounded-full overflow-hidden bg-white/[0.05]">
+            <div className="mt-4 flex h-[3px] rounded-full overflow-hidden bg-white/5">
               {segments.map((v, i) => (
                 <div
                   key={i}

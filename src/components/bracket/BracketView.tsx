@@ -21,7 +21,7 @@ function TeamSlot({
 }) {
   if (isEmpty || !team) {
     return (
-      <div className="flex items-center justify-between px-3 py-2 bg-bg-primary/50 rounded border border-white/5 min-w-[200px]">
+      <div className="flex items-center justify-between px-3 py-2 bg-bg-primary/50 rounded-sm border border-white/5 min-w-[200px]">
         <span className="text-text-muted text-sm italic">
           {seed ? `Seed #${seed}` : 'TBD'}
         </span>

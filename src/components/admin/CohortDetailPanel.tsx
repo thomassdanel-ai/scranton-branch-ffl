@@ -133,7 +133,7 @@ export default function CohortDetailPanel({
 
       {/* Invite Link */}
       <div className="flex items-center gap-2 flex-wrap">
-        <code className="text-xs text-primary bg-bg-tertiary px-3 py-2 rounded flex-1 truncate">
+        <code className="text-xs text-primary bg-bg-tertiary px-3 py-2 rounded-sm flex-1 truncate">
           {inviteUrl}
         </code>
         <button

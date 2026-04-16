@@ -1,6 +1,161 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --color-primary: #e056ff;
+  --color-primary-dark: #9d7fff;
+
+  --color-bg-primary: #08080a;
+  --color-bg-secondary: #131318;
+  --color-bg-tertiary: #1d1d23;
+
+  --color-accent-green: #ccff56;
+  --color-accent-red: #ff86d0;
+  --color-accent-gold: #ccff56;
+  --color-accent-purple: #9d7fff;
+
+  --color-league-sales: #e056ff;
+  --color-league-accounting: #56f0ff;
+
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #8c8c99;
+  --color-text-muted: #54545e;
+
+  --color-aurora-magenta: #e056ff;
+  --color-aurora-cyan: #56f0ff;
+  --color-aurora-lime: #ccff56;
+  --color-aurora-violet: #9d7fff;
+  --color-aurora-pink: #ff86d0;
+
+  --color-hairline: rgba(255, 255, 255, 0.08);
+  --color-hairline-strong: rgba(255, 255, 255, 0.16);
+
+  --font-display:
+    var(--font-display), Bricolage Grotesque, system-ui, sans-serif;
+  --font-sans: var(--font-sans), Onest, system-ui, sans-serif;
+  --font-mono: var(--font-mono), JetBrains Mono, monospace;
+
+  --text-display-xs: 2.5rem;
+  --text-display-xs--line-height: 0.95;
+  --text-display-xs--letter-spacing: -0.03em;
+  --text-display-sm: 3.5rem;
+  --text-display-sm--line-height: 0.92;
+  --text-display-sm--letter-spacing: -0.035em;
+  --text-display-md: 4.5rem;
+  --text-display-md--line-height: 0.9;
+  --text-display-md--letter-spacing: -0.04em;
+  --text-display-lg: 6rem;
+  --text-display-lg--line-height: 0.88;
+  --text-display-lg--letter-spacing: -0.04em;
+  --text-display-xl: 9rem;
+  --text-display-xl--line-height: 0.85;
+  --text-display-xl--letter-spacing: -0.05em;
+
+  --background-image-aurora-gradient: linear-gradient(
+    110deg,
+    #e056ff 0%,
+    #56f0ff 45%,
+    #ccff56 90%
+  );
+  --background-image-aurora-gradient-soft: linear-gradient(
+    110deg,
+    rgba(224, 86, 255, 0.8) 0%,
+    rgba(86, 240, 255, 0.8) 45%,
+    rgba(204, 255, 86, 0.8) 90%
+  );
+  --background-image-surface-gradient: linear-gradient(
+    135deg,
+    rgba(29, 29, 35, 0.85),
+    rgba(19, 19, 24, 0.9)
+  );
+
+  --shadow-aurora-mag: 0 0 40px -10px rgba(224, 86, 255, 0.4);
+  --shadow-aurora-cyan: 0 0 40px -10px rgba(86, 240, 255, 0.4);
+  --shadow-aurora-lime: 0 0 40px -10px rgba(204, 255, 86, 0.4);
+  --shadow-panel:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 40px -12px rgba(0, 0, 0, 0.6);
+
+  --animate-drift-1: drift1 18s ease-in-out infinite;
+  --animate-drift-2: drift2 22s ease-in-out infinite;
+  --animate-drift-3: drift3 26s ease-in-out infinite;
+  --animate-drift-4: drift4 20s ease-in-out infinite;
+  --animate-pulse-glow: pulseGlow 2s ease-in-out infinite;
+  --animate-fade-up: fadeUp 0.5s ease-out;
+
+  @keyframes drift1 {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(80px, 120px) scale(1.1);
+    }
+  }
+  @keyframes drift2 {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(-100px, 60px) scale(0.9);
+    }
+  }
+  @keyframes drift3 {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(120px, -80px) scale(1.15);
+    }
+  }
+  @keyframes drift4 {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(-60px, -40px) scale(1.05);
+    }
+  }
+  @keyframes pulseGlow {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 :root {
   /* Legacy vars — retained so any inline style="" or component literal still resolves */

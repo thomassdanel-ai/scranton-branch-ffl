@@ -198,12 +198,12 @@ export default function MembersPage() {
           placeholder="Search by name or email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted text-sm focus:outline-none focus:border-primary w-64"
+          className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted text-sm focus:outline-hidden focus:border-primary w-64"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+          className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
         >
           <option value="all">All Statuses</option>
           <option value="active">Active</option>
@@ -340,7 +340,7 @@ export default function MembersPage() {
                 type="text"
                 value={formData.full_name}
                 onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
                 required
                 autoFocus
               />
@@ -355,7 +355,7 @@ export default function MembersPage() {
                 value={formData.display_name}
                 onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
                 placeholder={formData.full_name.split(' ')[0] || 'First name used if blank'}
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted text-sm focus:outline-none focus:border-primary"
+                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted text-sm focus:outline-hidden focus:border-primary"
               />
             </div>
 
@@ -365,7 +365,7 @@ export default function MembersPage() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary"
+                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
               />
             </div>
 
@@ -375,7 +375,7 @@ export default function MembersPage() {
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={2}
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-none focus:border-primary resize-none"
+                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary resize-none"
               />
             </div>
 

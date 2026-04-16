@@ -197,11 +197,11 @@ export default function AdminPage() {
           <h1 className="text-xl font-bold text-white text-center">Create Admin Account</h1>
           <p className="text-text-muted text-sm text-center">First-time setup. Create your commissioner account.</p>
           <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Display name"
-            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary" autoFocus required />
+            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-hidden focus:border-primary" autoFocus required />
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email"
-            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary" required />
+            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-hidden focus:border-primary" required />
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password (8+ characters)"
-            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary" minLength={8} required />
+            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-hidden focus:border-primary" minLength={8} required />
           {error && <p className="text-accent-red text-sm text-center">{error}</p>}
           <button type="submit" className="w-full px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors">
             Create Account
@@ -217,9 +217,9 @@ export default function AdminPage() {
         <form onSubmit={handleLogin} className="glass-card p-8 w-full max-w-sm space-y-4">
           <h1 className="text-xl font-bold text-white text-center">Commissioner Login</h1>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email"
-            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary" autoFocus required />
+            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-hidden focus:border-primary" autoFocus required />
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password"
-            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-none focus:border-primary" required />
+            className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-hidden focus:border-primary" required />
           {error && <p className="text-accent-red text-sm text-center">{error}</p>}
           <button type="submit" className="w-full px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors">
             Log In
