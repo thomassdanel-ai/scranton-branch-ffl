@@ -1,20 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth, AuthError } from '@/lib/auth';
+import { requireAuth, AuthError, type AuthUser } from '@/lib/auth';
+import { userCanAccessMember } from '@/lib/auth-scope';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Ensure the caller is authorized AND scoped to the member.
+ * Throws AuthError(403) on scope mismatch so callers can surface a clean response.
+ */
+async function authorizeMemberAccess(memberId: string): Promise<AuthUser> {
+  const user = await requireAuth();
+  if (user.role !== 'super_admin') {
+    const ok = await userCanAccessMember(user, memberId);
+    if (!ok) throw new AuthError('Forbidden: no access to this member', 403);
+  }
+  return user;
+}
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAuth();
-
     const { id } = await params;
     if (!UUID_REGEX.test(id)) {
       return NextResponse.json({ error: 'Invalid member ID' }, { status: 400 });
     }
+
+    await authorizeMemberAccess(id);
 
     const supabase = createServiceClient();
 
@@ -49,12 +63,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAuth();
-
     const { id } = await params;
     if (!UUID_REGEX.test(id)) {
       return NextResponse.json({ error: 'Invalid member ID' }, { status: 400 });
     }
+
+    await authorizeMemberAccess(id);
 
     const body = await req.json();
     const { full_name, display_name, email, status, notes } = body;
@@ -108,12 +122,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAuth();
-
     const { id } = await params;
     if (!UUID_REGEX.test(id)) {
       return NextResponse.json({ error: 'Invalid member ID' }, { status: 400 });
     }
+
+    await authorizeMemberAccess(id);
 
     const supabase = createServiceClient();
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getLeague, getLeagueRosters, getMatchups, getTransactions } from '@/lib/sleeper/api';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAuth, AuthError } from '@/lib/auth';
@@ -6,13 +7,31 @@ import { buildWeeklyResults, buildPlayerScores } from '@/lib/weekly-results';
 import { getSeasonLeagues, getActiveSeasonId } from '@/lib/config';
 import { computePowerRankings } from '@/lib/rankings/compute';
 
+// NFL regular + playoffs sit within 25 weeks; cap here to prevent runaway
+// Sleeper fetches if maxWeek is ever supplied as junk.
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_WEEK_CAP = 25;
+const BodySchema = z
+  .object({
+    seasonId: z.string().regex(UUID_REGEX).optional(),
+    maxWeek: z.number().int().min(1).max(MAX_WEEK_CAP).optional(),
+  })
+  .strict();
+
 // POST: Backfill weekly results for all leagues, all weeks played
 export async function POST(req: NextRequest) {
   try {
     await requireAuth();
 
-    const body = await req.json();
-  const { seasonId, maxWeek } = body as { seasonId?: string; maxWeek?: number };
+    const raw = await req.json().catch(() => ({}));
+    const parsed = BodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: parsed.error.issues },
+        { status: 400 },
+      );
+    }
+    const { seasonId, maxWeek } = parsed.data;
 
   const supabase = createServiceClient();
 
@@ -52,6 +71,8 @@ export async function POST(req: NextRequest) {
     }
     if (!weeksToFetch || weeksToFetch < 1) weeksToFetch = 1;
   }
+  // Defensive clamp — never let rosters-derived week exceed the NFL calendar.
+  weeksToFetch = Math.min(weeksToFetch, MAX_WEEK_CAP);
 
   const summary: Record<string, { weeks: number; rows: number }> = {};
   let totalPlayerRows = 0;

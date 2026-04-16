@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getDraftPicks } from '@/lib/sleeper/api';
 import { resolveMemberSeasonsBatch } from '@/lib/member-resolver';
+import { isCronAuthorized } from '@/lib/cron-auth';
 import type { SleeperDraftPick } from '@/lib/sleeper/types';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get('authorization');
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

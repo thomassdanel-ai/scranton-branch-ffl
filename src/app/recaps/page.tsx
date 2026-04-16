@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { getActiveSeasonId } from '@/lib/config';
+import { sanitizeRecapHtml } from '@/lib/sanitize-html';
 
 async function getPublishedRecaps() {
   const supabase = createServiceClient();
@@ -74,7 +75,7 @@ export default async function RecapsPage() {
               </summary>
               <div
                 className="p-6 pt-0 prose prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: recap.html_content }}
+                dangerouslySetInnerHTML={{ __html: sanitizeRecapHtml(recap.html_content) }}
               />
             </details>
           );

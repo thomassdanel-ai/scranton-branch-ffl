@@ -5,6 +5,7 @@ import { computePowerRankings } from '@/lib/rankings/compute';
 import { buildWeeklyResults, buildPlayerScores } from '@/lib/weekly-results';
 import { getSeasonLeagues, getActiveSeasonId } from '@/lib/config';
 import { resolveMemberSeasonsBatch } from '@/lib/member-resolver';
+import { isCronAuthorized } from '@/lib/cron-auth';
 
 function isGameDay(): boolean {
   const day = new Date().getDay();
@@ -95,9 +96,7 @@ async function saveCompletedWeeks(
 }
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get('authorization');
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

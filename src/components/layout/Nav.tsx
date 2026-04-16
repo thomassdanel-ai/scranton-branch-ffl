@@ -5,13 +5,17 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useLeagueConfig } from '@/components/providers/ConfigProvider';
 import { ORG_SHORT_NAME } from '@/config/constants';
 
-const navLinks = [
+type NavLink = { href: string; label: string; memberOnly?: boolean };
+
+const navLinks: NavLink[] = [
   { href: '/', label: 'Home' },
-  { href: '/rankings', label: 'Power Rankings' },
+  { href: '/rankings', label: 'Rankings' },
   { href: '/bracket', label: 'Bracket' },
-  { href: '/transactions', label: 'Transactions' },
+  { href: '/trophies', label: 'Dundies' },
+  { href: '/transactions', label: 'Moves' },
   { href: '/history', label: 'History' },
   { href: '/recaps', label: 'Recaps' },
+  { href: '/team/me', label: 'My Team', memberOnly: true },
 ];
 
 export default function Nav() {
@@ -26,79 +30,116 @@ export default function Nav() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-bg-primary/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-hairline bg-bg-primary/60 backdrop-blur-xl backdrop-saturate-150">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-accent-gold text-xl">&#127942;</span>
-            <span className="font-bold text-white">{ORG_SHORT_NAME}</span>
+        <div className="flex h-16 items-center justify-between gap-6">
+          {/* Brand mark — aurora dot + wordmark */}
+          <Link href="/" className="group flex items-center gap-3 shrink-0">
+            <span className="relative flex h-8 w-8 items-center justify-center">
+              <span
+                className="absolute inset-0 rounded-full blur-md opacity-80 group-hover:opacity-100 transition-opacity"
+                style={{
+                  background:
+                    'conic-gradient(from 180deg at 50% 50%, #E056FF, #56F0FF, #CCFF56, #E056FF)',
+                }}
+              />
+              <span className="relative h-4 w-4 rounded-full bg-bg-primary border border-hairline-strong" />
+            </span>
+            <div className="flex flex-col leading-none">
+              <span className="font-display font-bold tracking-tight text-base text-text-primary">
+                {ORG_SHORT_NAME}
+              </span>
+              <span className="font-mono text-[10px] tracking-[0.22em] uppercase text-text-muted">
+                Fantasy Console
+              </span>
+            </div>
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  pathname === href
-                    ? 'bg-primary/20 text-primary'
-                    : 'text-text-secondary hover:text-white hover:bg-white/5'
-                }`}
-              >
-                {label}
-              </Link>
-            ))}
+          <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
+            {navLinks.filter((l) => !l.memberOnly || !!member).map(({ href, label }) => {
+              const active = pathname === href || (href !== '/' && pathname.startsWith(href));
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`relative px-3 py-2 rounded-full text-sm font-medium transition-colors font-mono tracking-wide uppercase text-[11.5px] ${
+                    active
+                      ? 'text-text-primary'
+                      : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  {active && (
+                    <span
+                      aria-hidden
+                      className="absolute inset-0 rounded-full border border-hairline-strong"
+                      style={{ background: 'var(--surface)' }}
+                    />
+                  )}
+                  <span className="relative">{label}</span>
+                </Link>
+              );
+            })}
+          </nav>
 
-            {/* League dropdown quick links */}
-            <div className="ml-2 flex items-center gap-1">
+          {/* Right cluster: league chips + identity */}
+          <div className="hidden md:flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-1.5">
               {leagues.map((league) => (
                 <Link
                   key={league.sleeperId || league.dbId}
                   href={`/leagues/${league.sleeperId}`}
-                  className="px-2 py-1 rounded text-xs font-semibold transition-colors hover:opacity-80"
-                  style={{ backgroundColor: `${league.color}22`, color: league.color, border: `1px solid ${league.color}44` }}
+                  className="px-2.5 py-1 rounded-full text-[10.5px] font-mono font-semibold tracking-[0.12em] uppercase transition-all hover:-translate-y-[1px]"
+                  style={{
+                    backgroundColor: `${league.color}1a`,
+                    color: league.color,
+                    border: `1px solid ${league.color}55`,
+                  }}
                 >
                   {league.shortName}
                 </Link>
               ))}
             </div>
 
-            {/* Member identity */}
             {member ? (
-              <div className="ml-3 flex items-center gap-2 pl-3 border-l border-white/10">
-                <span className="text-xs text-text-secondary">
-                  Your League: <span className="text-white font-semibold">{member.leagueName}</span>
-                </span>
+              <div className="flex items-center gap-2 pl-3 border-l border-hairline">
+                <div className="flex flex-col leading-tight text-right">
+                  <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-text-muted">
+                    Identity
+                  </span>
+                  <span className="text-[12.5px] font-semibold text-text-primary">
+                    {member.leagueName}
+                  </span>
+                </div>
                 <button
                   onClick={handleClearIdentity}
-                  className="text-xs text-text-muted hover:text-primary transition-colors"
+                  className="font-mono text-[10px] uppercase tracking-wider text-text-muted hover:text-aurora-magenta transition-colors"
+                  title="Clear your saved identity"
                 >
-                  Not you?
+                  ⌫
                 </button>
               </div>
             ) : (
               <Link
                 href="/identify"
-                className="ml-3 pl-3 border-l border-white/10 text-xs text-text-muted hover:text-primary transition-colors"
+                className="pl-3 border-l border-hairline font-mono text-[10.5px] uppercase tracking-[0.15em] text-text-muted hover:text-aurora-cyan transition-colors"
               >
-                Find Your League
+                Find league →
               </Link>
             )}
-          </nav>
+          </div>
 
-          {/* Mobile menu */}
-          <div className="md:hidden flex items-center gap-2">
-            {member && (
-              <span className="text-xs text-primary font-semibold mr-1">{member.leagueName}</span>
-            )}
-            {leagues.map((league) => (
+          {/* Mobile — just league chips on top row */}
+          <div className="md:hidden flex items-center gap-1.5">
+            {leagues.slice(0, 3).map((league) => (
               <Link
                 key={league.sleeperId || league.dbId}
                 href={`/leagues/${league.sleeperId}`}
-                className="px-2 py-1 rounded text-xs font-semibold"
-                style={{ backgroundColor: `${league.color}22`, color: league.color }}
+                className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold"
+                style={{
+                  backgroundColor: `${league.color}22`,
+                  color: league.color,
+                }}
               >
                 {league.shortName}
               </Link>
@@ -106,32 +147,37 @@ export default function Nav() {
           </div>
         </div>
 
-        {/* Mobile nav bar */}
-        <nav className="md:hidden flex items-center gap-1 pb-2 overflow-x-auto">
-          {navLinks.map(({ href, label }) => (
+        {/* Mobile nav scroll row */}
+        <nav className="md:hidden flex items-center gap-1 pb-2 overflow-x-auto -mx-1 px-1">
+          {navLinks.filter((l) => !l.memberOnly || !!member).map(({ href, label }) => {
+            const active = pathname === href || (href !== '/' && pathname.startsWith(href));
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-mono uppercase tracking-wide transition-colors ${
+                  active
+                    ? 'bg-white/5 text-text-primary border border-hairline-strong'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {label}
+              </Link>
+            );
+          })}
+          {!member ? (
             <Link
-              key={href}
-              href={href}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                pathname === href
-                  ? 'bg-primary/20 text-primary'
-                  : 'text-text-secondary hover:text-white'
-              }`}
+              href="/identify"
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-mono uppercase tracking-wide text-aurora-cyan"
             >
-              {label}
-            </Link>
-          ))}
-          {!member && (
-            <Link href="/identify" className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium text-primary">
               Identify
             </Link>
-          )}
-          {member && (
+          ) : (
             <button
               onClick={handleClearIdentity}
-              className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium text-text-muted"
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-mono uppercase tracking-wide text-text-muted"
             >
-              Not you?
+              {member.leagueName} · ⌫
             </button>
           )}
         </nav>

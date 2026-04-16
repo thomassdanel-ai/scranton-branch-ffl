@@ -1,26 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { verifyPassword, createSession, destroySession, hashPassword } from '@/lib/auth';
-
-const attempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 60_000;
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = attempts.get(ip);
-  if (!entry || now > entry.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-  entry.count++;
-  return entry.count > MAX_ATTEMPTS;
-}
+import { callerIp, isRateLimited } from '@/lib/rate-limit';
 
 // POST: Login with email + password
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (isRateLimited(ip)) {
+  const ip = callerIp(req);
+  if (isRateLimited('admin-login', ip, 5, 60_000)) {
     return NextResponse.json({ error: 'Too many attempts' }, { status: 429 });
   }
 
@@ -64,20 +50,17 @@ export async function DELETE() {
   return NextResponse.json({ ok: true });
 }
 
-// PUT: First-time setup — create the initial super_admin account
-// Only works when no admin_users exist yet
+// PUT: First-time setup — create the initial super_admin account.
+// Only works when no admin has claimed setup yet.
+// Protected against TOCTOU by an atomic claim on organizations.setup_claimed_at
+// (migration 016). The UPDATE only succeeds for the first caller.
 export async function PUT(req: NextRequest) {
-  const supabase = createServiceClient();
-
-  // Check if any admin users exist FIRST (before validation)
-  // The client sends an empty probe to distinguish 'setup' vs 'login' mode
-  const { count } = await supabase
-    .from('admin_users')
-    .select('id', { count: 'exact', head: true });
-
-  if (count && count > 0) {
-    return NextResponse.json({ error: 'Admin account already exists' }, { status: 409 });
+  const ip = callerIp(req);
+  if (isRateLimited('admin-setup', ip, 5, 60_000)) {
+    return NextResponse.json({ error: 'Too many attempts' }, { status: 429 });
   }
+
+  const supabase = createServiceClient();
 
   const { email, password, displayName } = await req.json();
 
@@ -92,7 +75,7 @@ export async function PUT(req: NextRequest) {
   // Get org
   const { data: org } = await supabase
     .from('organizations')
-    .select('id')
+    .select('id, setup_claimed_at')
     .eq('slug', 'scranton-branch-ffl')
     .single();
 
@@ -100,6 +83,27 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Organization not found' }, { status: 500 });
   }
 
+  // Short-circuit if already claimed (fast path, no write).
+  if (org.setup_claimed_at) {
+    return NextResponse.json({ error: 'Admin account already exists' }, { status: 409 });
+  }
+
+  // Atomic claim: only one caller wins the race. This is the entire TOCTOU fix.
+  const claimTime = new Date().toISOString();
+  const { data: claimed, error: claimErr } = await supabase
+    .from('organizations')
+    .update({ setup_claimed_at: claimTime })
+    .eq('id', org.id)
+    .is('setup_claimed_at', null)
+    .select('id')
+    .single();
+
+  if (claimErr || !claimed) {
+    // Another concurrent request beat us to the claim.
+    return NextResponse.json({ error: 'Admin account already exists' }, { status: 409 });
+  }
+
+  // At this point we own the setup slot. Create the super_admin.
   const passwordHash = await hashPassword(password);
 
   const { data: user, error } = await supabase
@@ -115,6 +119,12 @@ export async function PUT(req: NextRequest) {
     .single();
 
   if (error || !user) {
+    // Roll back the claim so legitimate admins can retry.
+    await supabase
+      .from('organizations')
+      .update({ setup_claimed_at: null })
+      .eq('id', org.id)
+      .eq('setup_claimed_at', claimTime);
     return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
   }
 

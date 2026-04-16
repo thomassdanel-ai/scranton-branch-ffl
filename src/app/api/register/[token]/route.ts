@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { callerIp, isRateLimited } from '@/lib/rate-limit';
 
 // GET: Return cohort info for a registration page (public, no auth)
 export async function GET(
   req: NextRequest,
   { params }: { params: { token: string } }
 ) {
+  // Rate-limit per IP (SECURITY_REVIEW #8). Tokens are 128-bit so brute force
+  // is infeasible, but we throttle anyway to cheaply mitigate guessing / enum.
+  const ip = callerIp(req);
+  if (isRateLimited('register-token-get', ip, 30, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
   const supabase = createServiceClient();
 
   const { data: cohort } = await supabase
@@ -46,13 +54,31 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { token: string } }
 ) {
-  const { fullName, email } = await req.json();
+  // Stricter limit than GET — registration writes and we don't want a single IP
+  // able to flood season_registrations / members with junk submissions.
+  const ip = callerIp(req);
+  if (isRateLimited('register-token-post', ip, 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
+  const { fullName, email, sleeperUsername } = await req.json();
 
   if (!fullName || typeof fullName !== 'string' || fullName.trim().length === 0) {
     return NextResponse.json({ error: 'Full name is required' }, { status: 400 });
   }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
+  }
+
+  // Sanitize optional Sleeper username: trim, strip leading @, lowercase
+  let cleanSleeperUsername: string | null = null;
+  if (sleeperUsername && typeof sleeperUsername === 'string') {
+    const cleaned = sleeperUsername.trim().replace(/^@/, '').toLowerCase();
+    if (cleaned && /^[a-z0-9_]+$/.test(cleaned)) {
+      cleanSleeperUsername = cleaned;
+    } else if (cleaned) {
+      return NextResponse.json({ error: 'Sleeper username can only contain letters, numbers, and underscores' }, { status: 400 });
+    }
   }
 
   const supabase = createServiceClient();
@@ -82,6 +108,7 @@ export async function POST(
         full_name: fullName.trim(),
         email: normalizedEmail,
         status: 'active',
+        ...(cleanSleeperUsername && { sleeper_username: cleanSleeperUsername }),
       },
       { onConflict: 'org_id,email', ignoreDuplicates: false }
     )
