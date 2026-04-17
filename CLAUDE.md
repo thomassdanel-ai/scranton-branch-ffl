@@ -6,15 +6,28 @@ A fantasy football league management platform for a friend group. Cross-league p
 
 ## Tech Stack
 
-- **Framework:** Next.js 14 (App Router), React 18, TypeScript 5
-- **Database:** Supabase (PostgreSQL + Realtime)
-- **Styling:** Tailwind CSS 3.4
+- **Framework:** Next.js 16 (App Router, Turbopack), React 19, TypeScript 6
+- **Database:** Supabase (PostgreSQL + Realtime) via `@supabase/ssr` 0.10
+- **Styling:** Tailwind CSS 4 (CSS-first `@theme` in `src/styles/globals.css`; no `tailwind.config.*`)
+- **Linting:** ESLint 9 (flat config in `eslint.config.mjs`). Pinned at 9 — ESLint 10 is incompatible with `eslint-plugin-react` bundled inside `eslint-config-next` 16.
 - **Validation:** Zod (runtime schema validation on API inputs)
 - **Animation:** Framer Motion (available), CSS animations (loading skeletons, page transitions)
 - **External API:** Sleeper.app (league data, matchups, transactions, players)
-- **Email:** Resend (configured, not actively used)
+- **Email:** Resend 6 (configured, not actively used)
 - **Cache:** Upstash Redis (configured, not actively used)
 - **Deployment:** Vercel (serverless + cron)
+
+### Framework gotchas to remember
+
+- **Dynamic route `params` are a Promise.** In server route handlers do `const params = await props.params`. In client components use `const params = use(props.params)`.
+- **`cookies()` is async.** Always `await cookies()` (see `src/lib/auth.ts`, `src/lib/member-scope.ts`).
+- **Server Supabase access.** The only export from `src/lib/supabase/server.ts` is `createServiceClient()` (service-role, no cookies). The cookie-bound `createClient` was removed in the Next 16 upgrade because it had zero callers. Browser code uses `src/lib/supabase/client.ts`.
+- **`players_normalized` reads must paginate.** PostgREST caps a single `.select()` at 1000 rows but the table holds ~11k (including D/STs with ids like `SF`/`TB`). See `src/lib/players/cache.ts` for the `.range()` loop pattern — without it, transaction cards render player IDs like `#12476` / `#SF`.
+- **Lint script** is `eslint .` (not `next lint` — Next 16 removed that subcommand).
+
+### React Compiler readiness (warnings, not errors)
+
+`eslint-plugin-react-hooks@7` ships four new Compiler-safety rules that are downgraded to `warn` in `eslint.config.mjs` (`react-hooks/purity`, `set-state-in-effect`, `set-state-in-render`, `immutability`). They flag ~11 call-sites in the codebase (`useRef(Date.now())`, synchronous `setState` inside `useEffect`, `resetTimer` accessed before declaration in `draft/[boardId]/page.tsx`, etc.). The code works fine at runtime. **Before adopting the React Compiler,** do a dedicated pass to fix these — the warnings are left visible on purpose so they don't go invisible.
 
 ## Directory Structure
 
