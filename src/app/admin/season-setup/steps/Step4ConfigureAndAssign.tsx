@@ -15,6 +15,10 @@ type Props = {
   isReview: boolean;
 };
 
+function cssVars(vars: Record<string, string>): React.CSSProperties {
+  return vars as React.CSSProperties;
+}
+
 export default function Step4ConfigureAndAssign({
   season,
   leagues,
@@ -23,7 +27,6 @@ export default function Step4ConfigureAndAssign({
   confirmedMemberCount,
   flash,
   onComplete,
-  isReview,
 }: Props) {
   // Sub-phase 4a: Configure leagues
   const defaultNumLeagues = Math.max(1, Math.min(4, Math.round(confirmedMemberCount / 10)));
@@ -46,40 +49,40 @@ export default function Step4ConfigureAndAssign({
   // If member_seasons exist, show locked read-only view
   if (memberSeasons.length > 0) {
     return (
-      <div className="glass-card p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">Step 4: Configure & Assign Leagues</h2>
-          <span className="text-xs px-3 py-1 rounded-full bg-accent-green/20 text-accent-green font-semibold">
-            Locked
-          </span>
+      <div className="wiz-panel">
+        <div className="wiz-panel__head">
+          <h2 className="wiz-panel__title">Step 4: Configure &amp; Assign Leagues</h2>
+          <span className="chip chip--success">Locked</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-2">
-          <div className="p-3 rounded-lg bg-bg-tertiary/50">
-            <p className="text-text-muted text-xs">Leagues</p>
-            <p className="text-white font-semibold">{leagues.length}</p>
+        <div className="form-grid form-grid--2">
+          <div className="stat-mini">
+            <div className="stat-mini__lab">Leagues</div>
+            <div className="stat-mini__val">{leagues.length}</div>
           </div>
-          <div className="p-3 rounded-lg bg-bg-tertiary/50">
-            <p className="text-text-muted text-xs">Roster Size</p>
-            <p className="text-white font-semibold">{season.roster_size_per_league}</p>
+          <div className="stat-mini">
+            <div className="stat-mini__lab">Roster Size</div>
+            <div className="stat-mini__val">{season.roster_size_per_league}</div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="form-grid form-grid--2">
           {leagues.map((league) => {
             const leagueMembers = memberSeasons
               .filter((ms) => ms.league_id === league.id)
               .map((ms) => getMemberName(ms.member_id));
             return (
-              <div key={league.id} className="p-4 rounded-lg bg-bg-tertiary/50">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.color }} />
-                  <h3 className="font-bold text-white">{league.name}</h3>
-                  <span className="text-text-muted text-xs">({leagueMembers.length})</span>
+              <div key={league.id} className="subcard" style={cssVars({ '--dot-color': league.color })}>
+                <div className="subcard__head">
+                  <div className="subcard__title">
+                    <span className="subcard__dot" />
+                    <span>{league.name}</span>
+                    <span className="subcard__meta">({leagueMembers.length})</span>
+                  </div>
                 </div>
-                <div className="space-y-1">
+                <div className="subcard__members">
                   {leagueMembers.map((name, i) => (
-                    <p key={i} className="text-text-secondary text-sm">{name}</p>
+                    <div key={i} className="subcard__member">{name}</div>
                   ))}
                 </div>
               </div>
@@ -95,7 +98,6 @@ export default function Step4ConfigureAndAssign({
     const product = numLeagues * rosterSize;
     const diff = product - confirmedMemberCount;
 
-    // Smart suggestions
     const suggestions: { leagues: number; size: number }[] = [];
     for (let l = 1; l <= 4; l++) {
       const s = Math.ceil(confirmedMemberCount / l);
@@ -108,14 +110,12 @@ export default function Step4ConfigureAndAssign({
       e.preventDefault();
       setConfigureSaving(true);
 
-      // First activate confirmed members
       await fetch('/api/admin/setup/intake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ seasonId: season.id }),
       });
 
-      // Then create leagues
       const res = await fetch('/api/admin/setup/leagues/configure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,45 +135,45 @@ export default function Step4ConfigureAndAssign({
         await onComplete();
       }
       setConfigureSaving(false);
-    }
+    };
 
     const applySuggestion = (s: { leagues: number; size: number }) => {
       setNumLeagues(s.leagues);
       setRosterSize(s.size);
       setLeagueNames(DEFAULT_LEAGUE_NAMES.slice(0, s.leagues));
-    }
+    };
 
     return (
-      <form onSubmit={handleConfigure} className="glass-card p-6 space-y-4">
-        <h2 className="text-lg font-bold text-white">Step 4: Configure Leagues</h2>
+      <form onSubmit={handleConfigure} className="wiz-panel">
+        <div className="wiz-panel__head">
+          <h2 className="wiz-panel__title">Step 4: Configure Leagues</h2>
+        </div>
 
-        <div className="text-sm font-medium px-3 py-2 rounded-lg bg-primary/10 text-primary">
+        <div className="info-panel info-panel--primary">
           You have {confirmedMemberCount} confirmed member{confirmedMemberCount !== 1 ? 's' : ''}. Choose how to divide them into leagues.
         </div>
 
-        {/* Smart suggestions */}
         {suggestions.length > 0 && (
-          <div className="flex gap-2 flex-wrap">
-            {suggestions.map((s) => (
-              <button
-                key={`${s.leagues}-${s.size}`}
-                type="button"
-                onClick={() => applySuggestion(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  numLeagues === s.leagues && rosterSize === s.size
-                    ? 'bg-primary text-white'
-                    : 'bg-bg-tertiary text-text-secondary hover:text-white'
-                }`}
-              >
-                {s.leagues} league{s.leagues !== 1 ? 's' : ''} &times; {s.size} players
-              </button>
-            ))}
+          <div className="row">
+            {suggestions.map((s) => {
+              const isOn = numLeagues === s.leagues && rosterSize === s.size;
+              return (
+                <button
+                  key={`${s.leagues}-${s.size}`}
+                  type="button"
+                  onClick={() => applySuggestion(s)}
+                  className={`sug-chip ${isOn ? 'sug-chip--on' : ''}`}
+                >
+                  {s.leagues} league{s.leagues !== 1 ? 's' : ''} &times; {s.size} players
+                </button>
+              );
+            })}
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="form-grid form-grid--2">
           <div>
-            <label className="block text-sm text-text-secondary mb-1">Number of Leagues</label>
+            <label className="form-label">Number of Leagues</label>
             <select
               value={numLeagues}
               onChange={(e) => {
@@ -182,7 +182,8 @@ export default function Step4ConfigureAndAssign({
                 setLeagueNames(DEFAULT_LEAGUE_NAMES.slice(0, n));
                 setRosterSize(Math.min(16, Math.max(4, Math.ceil(confirmedMemberCount / n))));
               }}
-              className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
+              className="sel"
+              style={{ width: '100%', height: 32 }}
             >
               {[1, 2, 3, 4].map((n) => (
                 <option key={n} value={n}>{n}</option>
@@ -190,21 +191,20 @@ export default function Step4ConfigureAndAssign({
             </select>
           </div>
           <div>
-            <label className="block text-sm text-text-secondary mb-1">Roster Size per League</label>
+            <label className="form-label">Roster Size per League</label>
             <input
               type="number"
               value={rosterSize}
               onChange={(e) => setRosterSize(Number(e.target.value))}
               min={4}
               max={16}
-              className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
+              className="inp"
             />
           </div>
         </div>
 
-        {/* Headcount check */}
         {diff !== 0 && (
-          <div className="text-sm px-3 py-2 rounded-lg bg-amber-500/10 text-amber-300">
+          <div className="info-panel info-panel--warning">
             Note: {numLeagues} &times; {rosterSize} = {product} slots but you have {confirmedMemberCount} confirmed member{confirmedMemberCount !== 1 ? 's' : ''}.
             {diff > 0
               ? ` ${diff} slot${diff !== 1 ? 's' : ''} will be unfilled.`
@@ -213,8 +213,8 @@ export default function Step4ConfigureAndAssign({
         )}
 
         <div>
-          <label className="block text-sm text-text-secondary mb-2">League Names</label>
-          <div className="space-y-2">
+          <label className="form-label">League Names</label>
+          <div className="col col--sm">
             {leagueNames.slice(0, numLeagues).map((name, i) => (
               <input
                 key={i}
@@ -226,7 +226,7 @@ export default function Step4ConfigureAndAssign({
                   setLeagueNames(u);
                 }}
                 placeholder={`League ${i + 1}`}
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
+                className="inp"
               />
             ))}
           </div>
@@ -235,9 +235,10 @@ export default function Step4ConfigureAndAssign({
         <button
           type="submit"
           disabled={configureSaving}
-          className="px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+          className="btn btn--primary"
+          style={{ alignSelf: 'flex-start' }}
         >
-          {configureSaving ? 'Creating...' : 'Create Leagues'}
+          {configureSaving ? 'Creating\u2026' : 'Create Leagues'}
         </button>
       </form>
     );
@@ -281,38 +282,39 @@ export default function Step4ConfigureAndAssign({
   }
 
   return (
-    <div className="glass-card p-6 space-y-4">
-      <h2 className="text-lg font-bold text-white">Step 4b: Assign Members to Leagues</h2>
-      <p className="text-text-muted text-sm">
+    <div className="wiz-panel">
+      <div className="wiz-panel__head">
+        <h2 className="wiz-panel__title">Step 4b: Assign Members to Leagues</h2>
+      </div>
+      <p className="wiz-panel__sub">
         {confirmedMemberCount} members &rarr; {leagues.length} league{leagues.length !== 1 ? 's' : ''}
       </p>
 
-      <div className="flex gap-3">
-        <button
-          onClick={randomizeLeagues}
-          className="px-4 py-2 bg-accent-purple text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
-        >
+      <div className="row">
+        <button onClick={randomizeLeagues} className="btn">
           {Object.keys(assignments).length > 0 ? 'Re-roll' : 'Randomize'}
         </button>
       </div>
 
       {Object.keys(assignments).length > 0 && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="form-grid form-grid--2">
             {leagues.map((league) => {
               const leagueMembers = Object.keys(assignments)
                 .filter((mid) => assignments[mid] === league.id)
                 .map((mid) => getMemberName(mid));
               return (
-                <div key={league.id} className="p-4 rounded-lg bg-bg-tertiary/50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.color }} />
-                    <h3 className="font-bold text-white">{league.name}</h3>
-                    <span className="text-text-muted text-xs">({leagueMembers.length})</span>
+                <div key={league.id} className="subcard" style={cssVars({ '--dot-color': league.color })}>
+                  <div className="subcard__head">
+                    <div className="subcard__title">
+                      <span className="subcard__dot" />
+                      <span>{league.name}</span>
+                      <span className="subcard__meta">({leagueMembers.length})</span>
+                    </div>
                   </div>
-                  <div className="space-y-1">
+                  <div className="subcard__members">
                     {leagueMembers.map((name, i) => (
-                      <p key={i} className="text-text-secondary text-sm">{name}</p>
+                      <div key={i} className="subcard__member">{name}</div>
                     ))}
                   </div>
                 </div>
@@ -322,9 +324,10 @@ export default function Step4ConfigureAndAssign({
           <button
             onClick={lockLeagues}
             disabled={assignSaving}
-            className="px-4 py-2 bg-accent-green text-white rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="btn btn--primary"
+            style={{ alignSelf: 'flex-start' }}
           >
-            {assignSaving ? 'Locking...' : 'Lock League Assignments'}
+            {assignSaving ? 'Locking\u2026' : 'Lock League Assignments'}
           </button>
         </>
       )}

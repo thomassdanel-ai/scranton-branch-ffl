@@ -14,6 +14,10 @@ type Props = {
   isReview: boolean;
 };
 
+function cssVars(vars: Record<string, string>): React.CSSProperties {
+  return vars as React.CSSProperties;
+}
+
 export default function Step5DraftOrder({
   season,
   leagues,
@@ -22,7 +26,6 @@ export default function Step5DraftOrder({
   draftBoards,
   flash,
   onComplete,
-  isReview,
 }: Props) {
   const [draftOrders, setDraftOrders] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
@@ -35,30 +38,30 @@ export default function Step5DraftOrder({
   // If draft boards exist, show read-only locked view
   if (draftBoards.length > 0) {
     return (
-      <div className="glass-card p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">Step 5: Draft Order</h2>
-          <span className="text-xs px-3 py-1 rounded-full bg-accent-green/20 text-accent-green font-semibold">
-            Locked
-          </span>
+      <div className="wiz-panel">
+        <div className="wiz-panel__head">
+          <h2 className="wiz-panel__title">Step 5: Draft Order</h2>
+          <span className="chip chip--success">Locked</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="form-grid form-grid--2">
           {leagues.map((league) => {
             const leagueMS = memberSeasons
               .filter((ms) => ms.league_id === league.id)
               .sort((a, b) => (a.draft_position || 0) - (b.draft_position || 0));
             return (
-              <div key={league.id} className="p-4 rounded-lg bg-bg-tertiary/50">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.color }} />
-                  <h3 className="font-bold text-white">{league.name}</h3>
+              <div key={league.id} className="subcard" style={cssVars({ '--dot-color': league.color })}>
+                <div className="subcard__head">
+                  <div className="subcard__title">
+                    <span className="subcard__dot" />
+                    <span>{league.name}</span>
+                  </div>
                 </div>
-                <div className="space-y-1">
+                <div className="draft-order-list">
                   {leagueMS.map((ms) => (
-                    <div key={ms.id} className="flex items-center gap-2">
-                      <span className="text-accent-gold font-mono text-sm w-6">{ms.draft_position || '?'}.</span>
-                      <span className="text-text-secondary text-sm">{getMemberName(ms.member_id)}</span>
+                    <div key={ms.id} className="draft-order-row">
+                      <span className="draft-order-row__pos">{ms.draft_position || '?'}</span>
+                      <span className="draft-order-row__name">{getMemberName(ms.member_id)}</span>
                     </div>
                   ))}
                 </div>
@@ -108,39 +111,40 @@ export default function Step5DraftOrder({
   }
 
   return (
-    <div className="glass-card p-6 space-y-4">
-      <h2 className="text-lg font-bold text-white">Step 5: Draft Order</h2>
-      <p className="text-text-muted text-sm">
+    <div className="wiz-panel">
+      <div className="wiz-panel__head">
+        <h2 className="wiz-panel__title">Step 5: Draft Order</h2>
+      </div>
+      <p className="wiz-panel__sub">
         Randomize draft positions per league, then lock to generate pick slots.
       </p>
 
-      <div className="flex gap-3">
-        <button
-          onClick={randomizeDraft}
-          className="px-4 py-2 bg-accent-purple text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
-        >
+      <div className="row">
+        <button onClick={randomizeDraft} className="btn">
           {Object.keys(draftOrders).length > 0 ? 'Re-roll' : 'Randomize Draft Order'}
         </button>
       </div>
 
       {Object.keys(draftOrders).length > 0 && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="form-grid form-grid--2">
             {leagues.map((league) => {
               const leagueMS = memberSeasons
                 .filter((ms) => ms.league_id === league.id)
                 .sort((a, b) => (draftOrders[a.id] || 0) - (draftOrders[b.id] || 0));
               return (
-                <div key={league.id} className="p-4 rounded-lg bg-bg-tertiary/50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.color }} />
-                    <h3 className="font-bold text-white">{league.name}</h3>
+                <div key={league.id} className="subcard" style={cssVars({ '--dot-color': league.color })}>
+                  <div className="subcard__head">
+                    <div className="subcard__title">
+                      <span className="subcard__dot" />
+                      <span>{league.name}</span>
+                    </div>
                   </div>
-                  <div className="space-y-1">
+                  <div className="draft-order-list">
                     {leagueMS.map((ms) => (
-                      <div key={ms.id} className="flex items-center gap-2">
-                        <span className="text-accent-gold font-mono text-sm w-6">{draftOrders[ms.id] || '?'}.</span>
-                        <span className="text-text-secondary text-sm">{getMemberName(ms.member_id)}</span>
+                      <div key={ms.id} className="draft-order-row">
+                        <span className="draft-order-row__pos">{draftOrders[ms.id] || '?'}</span>
+                        <span className="draft-order-row__name">{getMemberName(ms.member_id)}</span>
                       </div>
                     ))}
                   </div>
@@ -151,9 +155,10 @@ export default function Step5DraftOrder({
           <button
             onClick={lockDraft}
             disabled={saving}
-            className="px-4 py-2 bg-accent-green text-white rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="btn btn--primary"
+            style={{ alignSelf: 'flex-start' }}
           >
-            {saving ? 'Locking...' : 'Lock Draft Order & Generate Pick Slots'}
+            {saving ? 'Locking\u2026' : 'Lock Draft Order & Generate Pick Slots'}
           </button>
         </>
       )}

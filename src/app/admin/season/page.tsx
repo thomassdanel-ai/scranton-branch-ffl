@@ -25,6 +25,10 @@ interface SeasonConfig {
 
 const WIZARD_MANAGED_STATUSES = ['setup', 'registering', 'confirming', 'pre_draft', 'drafting'];
 
+function cssVars(vars: Record<string, string>): React.CSSProperties {
+  return vars as React.CSSProperties;
+}
+
 export default function SeasonManagementPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -36,7 +40,6 @@ export default function SeasonManagementPage() {
   const [seasonNumber, setSeasonNumber] = useState<number | null>(null);
 
   useEffect(() => {
-    // Fetch dashboard for season status (covers all statuses)
     const fetchStatus = fetch('/api/admin/dashboard')
       .then((res) => res.ok ? res.json() : null)
       .then((data) => {
@@ -96,10 +99,9 @@ export default function SeasonManagementPage() {
     setSaving(true);
     setMessage('');
 
-    // Validate
     for (const league of config.leagues) {
       if (!league.id.trim() || !league.name.trim()) {
-        setMessage('All leagues need an ID and name.');
+        setMessage('Error: All leagues need an ID and name.');
         setSaving(false);
         return;
       }
@@ -124,8 +126,8 @@ export default function SeasonManagementPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <p style={{ color: 'var(--ink-5)', font: '500 var(--fs-13) / 1 var(--font-mono)' }}>Loading&hellip;</p>
       </div>
     );
   }
@@ -133,109 +135,105 @@ export default function SeasonManagementPage() {
   if (!config) return null;
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-extrabold text-white">Season Management</h1>
-        <p className="text-text-secondary text-sm mt-1">
+    <div className="col col--lg" style={{ maxWidth: 800 }}>
+      <div className="page-head">
+        <h1 className="page-head__title">Season Management</h1>
+        <p className="wiz-panel__sub" style={{ marginTop: 4 }}>
           Update league IDs when new Sleeper leagues are created for the new season.
         </p>
       </div>
 
-      {/* Wizard-managed guard banner */}
       {isWizardManaged && (
-        <div className="glass-card p-4 border border-amber-500/30 bg-amber-500/5">
-          <p className="text-amber-300 text-sm font-semibold mb-1">
+        <div className="info-panel info-panel--warning">
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
             Season {seasonNumber} is currently being set up.
-          </p>
-          <p className="text-text-secondary text-sm">
+          </div>
+          <div style={{ color: 'var(--ink-7)' }}>
             Use the Setup Wizard to make changes during initial configuration.
-          </p>
-          <Link href="/admin/season-setup" className="text-primary text-sm hover:underline mt-2 inline-block">
-            Go to Setup Wizard
+          </div>
+          <Link
+            href="/admin/season-setup"
+            style={{ color: 'var(--accent-live)', display: 'inline-block', marginTop: 8, fontSize: 13 }}
+          >
+            Go to Setup Wizard &rarr;
           </Link>
         </div>
       )}
 
       {/* Season year */}
-      <div className="glass-card p-6 space-y-4">
-        <h2 className="font-bold text-white">Season</h2>
+      <div className="wiz-panel">
+        <div className="wiz-panel__head">
+          <h2 className="wiz-panel__title">Season</h2>
+        </div>
         <div>
-          <label className="text-sm text-text-secondary block mb-1">Season Year</label>
+          <label className="form-label">Season Year</label>
           <input
             type="text"
             value={year}
             onChange={(e) => setYear(e.target.value)}
             disabled={isWizardManaged}
-            className="w-32 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-hidden focus:border-primary stat disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inp inp--mono"
+            style={{ width: 160 }}
           />
         </div>
       </div>
 
       {/* Leagues */}
-      <div className="glass-card p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold text-white">Leagues</h2>
+      <div className="wiz-panel">
+        <div className="wiz-panel__head">
+          <h2 className="wiz-panel__title">Leagues</h2>
           {!isWizardManaged && (
-            <button
-              onClick={addLeague}
-              className="text-sm text-primary hover:text-primary-dark transition-colors"
-            >
+            <button onClick={addLeague} className="btn btn--sm">
               + Add League
             </button>
           )}
         </div>
 
         {config.leagues.map((league, i) => (
-          <div key={i} className="p-4 rounded-lg bg-bg-tertiary space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: league.color }}
-                />
-                <span className="text-sm font-semibold text-white">
-                  {league.name || 'New League'}
-                </span>
+          <div key={i} className="subcard" style={cssVars({ '--dot-color': league.color })}>
+            <div className="subcard__head">
+              <div className="subcard__title">
+                <span className="subcard__dot" />
+                <span>{league.name || 'New League'}</span>
               </div>
               {config.leagues.length > 1 && !isWizardManaged && (
-                <button
-                  onClick={() => removeLeague(i)}
-                  className="text-xs text-accent-red hover:underline"
-                >
+                <button onClick={() => removeLeague(i)} className="btn btn--sm btn--ghost" style={{ color: 'var(--accent-danger)' }}>
                   Remove
                 </button>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="form-grid form-grid--2">
               <div>
-                <label className="text-xs text-text-muted block mb-1">League Name</label>
+                <label className="form-label">League Name</label>
                 <input
                   type="text"
                   value={league.name}
                   onChange={(e) => updateLeague(i, 'name', e.target.value)}
                   disabled={isWizardManaged}
                   placeholder="Sales"
-                  className="w-full px-3 py-1.5 rounded-sm bg-bg-secondary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inp"
                 />
               </div>
               <div>
-                <label className="text-xs text-text-muted block mb-1">Short Name</label>
+                <label className="form-label">Short Name</label>
                 <input
                   type="text"
                   value={league.shortName}
                   onChange={(e) => updateLeague(i, 'shortName', e.target.value)}
                   disabled={isWizardManaged}
                   placeholder="Sales"
-                  className="w-full px-3 py-1.5 rounded-sm bg-bg-secondary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inp"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs text-text-muted block mb-1">
+              <label className="form-label">
                 Sleeper League ID
-                <span className="text-text-muted ml-1">(from the league URL on Sleeper)</span>
+                <span style={{ color: 'var(--ink-5)', marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>
+                  (from the league URL on Sleeper)
+                </span>
               </label>
               <input
                 type="text"
@@ -243,21 +241,23 @@ export default function SeasonManagementPage() {
                 onChange={(e) => updateLeague(i, 'id', e.target.value)}
                 disabled={isWizardManaged}
                 placeholder="1260755589445718016"
-                className="w-full px-3 py-1.5 rounded-sm bg-bg-secondary border border-white/10 text-white text-sm font-mono focus:outline-hidden focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inp inp--mono"
               />
             </div>
 
             <div>
-              <label className="text-xs text-text-muted block mb-1">Badge Color</label>
-              <div className="flex items-center gap-2">
+              <label className="form-label">Badge Color</label>
+              <div className="row">
                 <input
                   type="color"
                   value={league.color}
                   onChange={(e) => updateLeague(i, 'color', e.target.value)}
                   disabled={isWizardManaged}
-                  className="w-8 h-8 rounded-sm cursor-pointer bg-transparent border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inp-color"
                 />
-                <span className="text-xs text-text-muted font-mono">{league.color}</span>
+                <span style={{ color: 'var(--ink-5)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                  {league.color}
+                </span>
               </div>
             </div>
           </div>
@@ -265,10 +265,12 @@ export default function SeasonManagementPage() {
       </div>
 
       {/* Championship settings */}
-      <div className="glass-card p-6 space-y-4">
-        <h2 className="font-bold text-white">Championship</h2>
+      <div className="wiz-panel">
+        <div className="wiz-panel__head">
+          <h2 className="wiz-panel__title">Championship</h2>
+        </div>
         <div>
-          <label className="text-sm text-text-secondary block mb-1">Qualifiers per League</label>
+          <label className="form-label">Qualifiers per League</label>
           <input
             type="number"
             min={1}
@@ -284,25 +286,32 @@ export default function SeasonManagementPage() {
               })
             }
             disabled={isWizardManaged}
-            className="w-20 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white focus:outline-hidden focus:border-primary stat disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inp"
+            style={{ width: 100 }}
           />
         </div>
       </div>
 
       {/* Save — hidden during wizard-managed setup */}
       {!isWizardManaged && (
-        <div className="flex items-center gap-4">
+        <div className="row">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+            className="btn btn--primary btn--lg"
           >
-            {saving ? 'Saving...' : 'Save Configuration'}
+            {saving ? 'Saving\u2026' : 'Save Configuration'}
           </button>
           {message && (
-            <p className={`text-sm ${message.startsWith('Error') ? 'text-accent-red' : 'text-accent-green'}`}>
+            <span
+              className="form-hint"
+              style={{
+                color: message.startsWith('Error') ? 'var(--accent-danger)' : 'var(--accent-live)',
+                fontSize: 13,
+              }}
+            >
               {message}
-            </p>
+            </span>
           )}
         </div>
       )}

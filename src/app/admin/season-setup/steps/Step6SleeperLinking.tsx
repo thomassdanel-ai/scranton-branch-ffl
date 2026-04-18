@@ -20,6 +20,10 @@ type Props = {
   onComplete: () => Promise<void>;
 };
 
+function cssVars(vars: Record<string, string>): React.CSSProperties {
+  return vars as React.CSSProperties;
+}
+
 export default function Step6SleeperLinking({
   season,
   leagues,
@@ -36,7 +40,6 @@ export default function Step6SleeperLinking({
   const [saving, setSaving] = useState(false);
   const [validatingDraft, setValidatingDraft] = useState<string | null>(null);
 
-  // Initialize from existing data
   useEffect(() => {
     const links: Record<string, string> = {};
     for (const l of leagues) {
@@ -139,9 +142,11 @@ export default function Step6SleeperLinking({
   });
 
   return (
-    <div className="glass-card p-6 space-y-4">
-      <h2 className="text-lg font-bold text-white">Step 6: Link Sleeper Leagues</h2>
-      <p className="text-text-muted text-sm">
+    <div className="wiz-panel">
+      <div className="wiz-panel__head">
+        <h2 className="wiz-panel__title">Step 6: Link Sleeper Leagues</h2>
+      </div>
+      <p className="wiz-panel__sub">
         Connect each league to its Sleeper league, map rosters, and link drafts.
       </p>
 
@@ -150,28 +155,27 @@ export default function Step6SleeperLinking({
         const board = draftBoards.find((b) => b.league_id === league.id);
 
         return (
-          <div key={league.id} className="p-4 rounded-lg bg-bg-tertiary/50 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.color }} />
-                <h3 className="font-bold text-white">{league.name}</h3>
+          <div key={league.id} className="subcard" style={cssVars({ '--dot-color': league.color })}>
+            <div className="subcard__head">
+              <div className="subcard__title">
+                <span className="subcard__dot" />
+                <span>{league.name}</span>
               </div>
-              <div className="flex items-center gap-2 text-xs">
-                <span className={status.hasSleeperLeague ? 'text-green-300' : 'text-text-muted'}>
-                  {status.hasSleeperLeague ? '\u2713' : '\u25cb'} League ID
+              <div className="status-dots">
+                <span className={`status-dots__item ${status.hasSleeperLeague ? 'status-dots__item--on' : ''}`}>
+                  League ID
                 </span>
-                <span className={status.allRostersMapped ? 'text-green-300' : 'text-text-muted'}>
-                  {status.allRostersMapped ? '\u2713' : '\u25cb'} Rosters
-                  {!status.allRostersMapped && status.unmappedCount > 0 && ` (${status.unmappedCount} unmapped)`}
+                <span className={`status-dots__item ${status.allRostersMapped ? 'status-dots__item--on' : ''}`}>
+                  Rosters{!status.allRostersMapped && status.unmappedCount > 0 && ` (${status.unmappedCount})`}
                 </span>
-                <span className={status.hasDraftLink ? 'text-green-300' : 'text-text-muted'}>
-                  {status.hasDraftLink ? '\u2713' : '\u25cb'} Draft
+                <span className={`status-dots__item ${status.hasDraftLink ? 'status-dots__item--on' : ''}`}>
+                  Draft
                 </span>
               </div>
             </div>
 
             {/* Sleeper League ID input */}
-            <div className="flex gap-2">
+            <div style={{ display: 'flex', gap: 8 }}>
               <input
                 type="text"
                 value={sleeperLinks[league.id] || ''}
@@ -182,7 +186,8 @@ export default function Step6SleeperLinking({
                   setSleeperLinks((prev) => ({ ...prev, [league.id]: val }));
                 }}
                 placeholder="Sleeper League URL or ID"
-                className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
+                className="inp"
+                style={{ flex: 1 }}
               />
               <button
                 onClick={() => {
@@ -190,7 +195,7 @@ export default function Step6SleeperLinking({
                   if (sid) fetchSleeperRosters(league.id, sid);
                 }}
                 disabled={!sleeperLinks[league.id]}
-                className="px-3 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark disabled:opacity-50"
+                className="btn btn--primary"
               >
                 Fetch Rosters
               </button>
@@ -198,13 +203,16 @@ export default function Step6SleeperLinking({
 
             {/* Roster mapping */}
             {sleeperRosters[league.id] && (
-              <div className="space-y-2">
-                <p className="text-text-muted text-xs">Map each Sleeper roster to a member:</p>
+              <div className="col col--sm">
+                <p className="form-hint">Map each Sleeper roster to a member:</p>
                 {memberSeasons
                   .filter((ms) => ms.league_id === league.id)
                   .map((ms) => (
-                    <div key={ms.id} className="flex items-center gap-2">
-                      <span className="text-text-secondary text-sm w-40 truncate">
+                    <div key={ms.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span
+                        className="reg-row__name"
+                        style={{ width: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      >
                         {getMemberName(ms.member_id)}
                       </span>
                       <select
@@ -221,9 +229,10 @@ export default function Step6SleeperLinking({
                             }));
                           }
                         }}
-                        className="flex-1 px-2 py-1 rounded-sm bg-bg-tertiary border border-white/10 text-white text-xs"
+                        className="sel"
+                        style={{ flex: 1, height: 28 }}
                       >
-                        <option value="">Select roster...</option>
+                        <option value="">Select roster&hellip;</option>
                         {sleeperRosters[league.id].map((r) => (
                           <option key={r.roster_id} value={r.roster_id}>
                             {r.display_name} {r.team_name ? `(${r.team_name})` : ''}
@@ -237,30 +246,31 @@ export default function Step6SleeperLinking({
 
             {/* Sleeper Draft ID */}
             {board && !board.sleeper_draft_id && (
-              <div className="flex gap-2">
+              <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   type="text"
                   value={sleeperDraftIds[league.id] || ''}
                   onChange={(e) => setSleeperDraftIds((prev) => ({ ...prev, [league.id]: e.target.value.trim() }))}
                   placeholder="Sleeper Draft ID"
-                  className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
+                  className="inp"
+                  style={{ flex: 1 }}
                 />
                 <button
                   onClick={() => linkDraft(league.id)}
                   disabled={validatingDraft === league.id || !sleeperDraftIds[league.id]}
-                  className="px-3 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark disabled:opacity-50"
+                  className="btn btn--primary"
                 >
-                  {validatingDraft === league.id ? 'Linking...' : 'Link Draft'}
+                  {validatingDraft === league.id ? 'Linking\u2026' : 'Link Draft'}
                 </button>
               </div>
             )}
 
             {board?.sleeper_draft_id && (
-              <p className="text-xs text-green-300">Draft linked: {board.sleeper_draft_id}</p>
+              <p className="form-hint" style={{ color: 'var(--accent-live)' }}>Draft linked: {board.sleeper_draft_id}</p>
             )}
 
             {!board && (
-              <p className="text-text-muted text-xs">No draft board found. Complete Step 5 first.</p>
+              <p className="form-hint">No draft board found. Complete Step 5 first.</p>
             )}
           </div>
         );
@@ -269,19 +279,17 @@ export default function Step6SleeperLinking({
       <button
         onClick={saveSleeper}
         disabled={saving || Object.keys(sleeperLinks).length === 0}
-        className="px-4 py-2 bg-accent-green text-white rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+        className="btn btn--primary"
+        style={{ alignSelf: 'flex-start' }}
       >
-        {saving ? 'Saving...' : 'Save All Sleeper Links'}
+        {saving ? 'Saving\u2026' : 'Save All Sleeper Links'}
       </button>
 
       {allLeaguesComplete && (
-        <div className="p-4 rounded-lg bg-accent-green/10 border border-accent-green/30 text-center">
-          <p className="text-accent-green text-lg font-bold">Season Setup Complete!</p>
-          <p className="text-text-muted text-sm mt-1">All leagues are linked and ready to go.</p>
-          <Link
-            href="/admin"
-            className="inline-block mt-3 px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors"
-          >
+        <div className="wiz-done">
+          <p className="wiz-done__title">Season Setup Complete!</p>
+          <p className="wiz-done__sub">All leagues are linked and ready to go.</p>
+          <Link href="/admin" className="btn btn--primary btn--lg" style={{ marginTop: 8 }}>
             Go to Dashboard
           </Link>
         </div>

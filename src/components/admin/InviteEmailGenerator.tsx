@@ -33,7 +33,6 @@ See you on the field!
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for non-https
       const textarea = document.createElement('textarea');
       textarea.value = emailBody;
       document.body.appendChild(textarea);
@@ -46,17 +45,28 @@ See you on the field!
   }
 
   return (
-    <div className="space-y-3">
-      <div className="bg-bg-tertiary rounded-lg p-4 text-sm text-text-secondary whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
+    <div className="col col--sm">
+      <div
+        style={{
+          padding: 14,
+          background: 'var(--ink-0)',
+          border: 'var(--hairline)',
+          borderRadius: 'var(--r-2)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 12,
+          lineHeight: 1.5,
+          color: 'var(--ink-7)',
+          whiteSpace: 'pre-wrap',
+          maxHeight: 260,
+          overflowY: 'auto',
+        }}
+      >
         {emailBody}
       </div>
       <button
         onClick={handleCopy}
-        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-          copied
-            ? 'bg-green-500/20 text-green-300'
-            : 'bg-primary/20 text-primary hover:bg-primary/30'
-        }`}
+        className={`btn btn--sm ${copied ? 'chip--success' : 'btn--primary'}`}
+        style={{ alignSelf: 'flex-start' }}
       >
         {copied ? 'Copied!' : 'Copy Email to Clipboard'}
       </button>

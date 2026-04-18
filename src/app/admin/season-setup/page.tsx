@@ -139,8 +139,8 @@ export default function SeasonSetupPage() {
 
   if (loading || !progress) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading wizard...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <p style={{ color: 'var(--ink-5)', font: '500 var(--fs-13) / 1 var(--font-mono)' }}>Loading wizard&hellip;</p>
       </div>
     );
   }
@@ -163,18 +163,13 @@ export default function SeasonSetupPage() {
   function renderStep() {
     if (isWizardComplete) {
       return (
-        <div className="glass-card p-8 text-center space-y-3">
-          <div className="text-4xl">&#127942;</div>
-          <p className="text-accent-green text-xl font-bold">
-            Season {p.season!.season_number} Setup Complete!
+        <div className="wiz-done">
+          <div className="wiz-done__emoji">&#127942;</div>
+          <p className="wiz-done__title">Season {p.season!.season_number} Setup Complete</p>
+          <p className="wiz-done__sub">
+            Status: {p.season!.status} &middot; {p.leagues.length} leagues &middot; {p.memberSeasons.length} members assigned
           </p>
-          <p className="text-text-muted text-sm">
-            Status: {p.season!.status} | {p.leagues.length} leagues | {p.memberSeasons.length} members assigned
-          </p>
-          <Link
-            href="/admin"
-            className="inline-block mt-4 px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors"
-          >
+          <Link href="/admin" className="btn btn--primary btn--lg" style={{ marginTop: 8 }}>
             Go to Dashboard
           </Link>
         </div>
@@ -259,40 +254,36 @@ export default function SeasonSetupPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div>
-        <Link href="/admin" className="text-text-muted text-sm hover:text-white transition-colors">
-          &larr; Back to Admin
+    <div className="col col--lg" style={{ maxWidth: 960 }}>
+      <div className="page-head">
+        <Link href="/admin" className="back-link">
+          <span aria-hidden="true">&larr;</span> Back to Admin
         </Link>
-        <h1 className="text-2xl font-extrabold text-white mt-1">Season Setup Wizard</h1>
+        <h1 className="page-head__title">Season Setup Wizard</h1>
       </div>
 
       {/* Step indicator */}
-      <div className="flex gap-1">
+      <div className="wiz-nav">
         {STEPS.map((s) => {
           const isCompleted = s.num < currentStep;
           const isCurrent = s.num === currentStep && !isWizardComplete;
           const isViewing = s.num === activeViewStep;
           const isClickable = s.num <= currentStep;
 
+          const cls = ['wiz-step'];
+          if (isCompleted) cls.push('wiz-step--done');
+          if (isCurrent) cls.push('wiz-step--current');
+          if (isViewing) cls.push('wiz-step--viewing');
+
           return (
             <button
               key={s.num}
               onClick={() => handleStepClick(s.num)}
               disabled={!isClickable}
-              className={`flex-1 text-center py-2 text-xs font-medium rounded transition-colors ${
-                isViewing && isCompleted
-                  ? 'bg-accent-green/30 text-accent-green ring-2 ring-accent-green/50'
-                  : isViewing && isCurrent
-                    ? 'bg-primary ring-2 ring-primary/50 text-white'
-                    : isCompleted
-                      ? 'bg-accent-green/20 text-accent-green cursor-pointer hover:bg-accent-green/30'
-                      : isCurrent
-                        ? 'bg-primary text-white'
-                        : 'bg-bg-tertiary text-text-muted cursor-not-allowed'
-              }`}
+              className={cls.join(' ')}
             >
-              {isCompleted ? '\u2713 ' : ''}{s.num}. {s.label}
+              <span className="wiz-step__num">{isCompleted ? '\u2713' : s.num}</span>
+              <span className="wiz-step__label">{s.label}</span>
             </button>
           );
         })}
@@ -300,18 +291,9 @@ export default function SeasonSetupPage() {
 
       {/* Flash messages */}
       {flashMsg && (
-        <div
-          className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm ${
-            flashMsg.type === 'error'
-              ? 'text-accent-red bg-red-500/10'
-              : 'text-accent-green bg-green-500/10'
-          }`}
-        >
+        <div className={`flash ${flashMsg.type === 'error' ? 'flash--error' : 'flash--success'}`}>
           <span>{flashMsg.text}</span>
-          <button
-            onClick={dismissFlash}
-            className="ml-4 text-lg leading-none opacity-70 hover:opacity-100"
-          >
+          <button onClick={dismissFlash} className="flash__close" aria-label="Dismiss">
             &times;
           </button>
         </div>
