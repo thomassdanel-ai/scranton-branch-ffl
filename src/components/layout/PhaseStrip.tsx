@@ -10,7 +10,7 @@ type PhaseStripProps = {
 export default function PhaseStrip({ year, phase, className }: PhaseStripProps) {
   const currentIndex = phase ? SEASON_PHASE_ORDER.indexOf(phase) : -1;
   const phaseLabel = phase ? SEASON_PHASE_LABEL[phase].toUpperCase() : 'OFF-SEASON';
-  const phaseNum = currentIndex >= 0 ? String(currentIndex + 1).padStart(2, '0') : '—';
+  const phaseNum = currentIndex >= 0 ? String(currentIndex + 1) : '—';
   const totalNum = SEASON_PHASE_ORDER.length;
 
   return (
