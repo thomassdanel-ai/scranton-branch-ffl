@@ -18,6 +18,31 @@ export type SeasonStatus = {
   seasonId: string | null;
   year: string;
   isOffSeason: boolean;
+  phase: SeasonStatusValue | null;
+};
+
+export const SEASON_PHASE_ORDER: SeasonStatusValue[] = [
+  'setup',
+  'registering',
+  'confirming',
+  'pre_draft',
+  'drafting',
+  'active',
+  'playoffs',
+  'completed',
+  'archived',
+];
+
+export const SEASON_PHASE_LABEL: Record<SeasonStatusValue, string> = {
+  setup: 'Setup',
+  registering: 'Registering',
+  confirming: 'Confirming',
+  pre_draft: 'Pre-Draft',
+  drafting: 'Drafting',
+  active: 'Active',
+  playoffs: 'Playoffs',
+  completed: 'Completed',
+  archived: 'Archived',
 };
 
 /**
@@ -58,16 +83,34 @@ async function getLatestSeasonId(): Promise<string | null> {
  * Get the current season status — whether we're in an active season or off-season.
  */
 export async function getSeasonStatus(): Promise<SeasonStatus> {
+  const supabase = createServiceClient();
   const activeId = await getActiveSeasonId();
   if (activeId) {
-    const year = await getActiveSeasonYear();
-    return { seasonId: activeId, year, isOffSeason: false };
+    const [year, { data: row }] = await Promise.all([
+      getActiveSeasonYear(),
+      supabase.from('seasons').select('status').eq('id', activeId).single(),
+    ]);
+    return {
+      seasonId: activeId,
+      year,
+      isOffSeason: false,
+      phase: (row?.status as SeasonStatusValue | undefined) ?? null,
+    };
   }
 
-  // No active season — off-season, fall back to latest
   const latestId = await getLatestSeasonId();
-  const year = await getActiveSeasonYear(); // already falls back to latest
-  return { seasonId: latestId, year, isOffSeason: true };
+  const [year, { data: row }] = await Promise.all([
+    getActiveSeasonYear(),
+    latestId
+      ? supabase.from('seasons').select('status').eq('id', latestId).single()
+      : Promise.resolve({ data: null }),
+  ]);
+  return {
+    seasonId: latestId,
+    year,
+    isOffSeason: true,
+    phase: (row?.status as SeasonStatusValue | undefined) ?? null,
+  };
 }
 
 /**

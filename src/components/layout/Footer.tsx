@@ -13,71 +13,102 @@ export default function Footer() {
 
   return (
     <>
-      <footer className="mt-auto border-t border-white/10 py-8">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="flex flex-col items-center gap-2 text-center">
-            <p className="text-text-muted text-sm">
-              {ORG_NAME} — {currentYear} Season
-            </p>
-            <p className="text-text-muted text-xs">
-              Scranton Branch —{' '}
-              <span className="italic">A Dunder Mifflin Production</span>
-            </p>
-            <div className="flex items-center gap-4 mt-2">
-              <Link
-                href="/admin"
-                className="text-xs text-text-muted hover:text-text-secondary transition-colors"
-              >
-                Commissioner Panel
+      <footer
+        className="mt-auto"
+        style={{
+          borderTop: 'var(--hairline)',
+          background: 'var(--ink-1)',
+        }}
+      >
+        <div className="wrap">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-6">
+            <div className="flex items-center gap-3">
+              <span
+                className="topnav__brand-mark"
+                aria-hidden
+                style={{ width: 22, height: 22 }}
+              />
+              <div className="flex flex-col leading-tight">
+                <span
+                  className="font-mono text-[12px] font-semibold"
+                  style={{ color: 'var(--ink-7)' }}
+                >
+                  {ORG_NAME}
+                </span>
+                <span
+                  className="font-mono text-[10px] uppercase tracking-[0.12em]"
+                  style={{ color: 'var(--ink-5)' }}
+                >
+                  {currentYear} SEASON · A DUNDER MIFFLIN PRODUCTION
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <Link href="/admin" className="label hover:text-[var(--accent-live)]">
+                Commissioner
               </Link>
-              <span className="text-text-muted text-xs">•</span>
+              <span style={{ color: 'var(--ink-4)' }}>/</span>
               <button
+                type="button"
                 onClick={() => setShowToby(true)}
-                className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+                className="label hover:text-[var(--accent-danger)]"
               >
                 HR Compliance
               </button>
-              <span className="text-text-muted text-xs">•</span>
-              <span className="text-xs text-text-muted">
-                Powered by Sleeper API
-              </span>
+              <span style={{ color: 'var(--ink-4)' }}>/</span>
+              <span className="label">Sleeper API</span>
             </div>
           </div>
         </div>
       </footer>
 
-      {/* Toby Modal */}
       {showToby && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={() => setShowToby(false)}
         >
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" />
           <div
-            className="relative glass-card p-6 sm:p-8 max-w-sm w-full text-center space-y-4 animate-in"
+            className="absolute inset-0"
+            style={{ background: 'oklch(0 0 0 / 0.72)', backdropFilter: 'blur(4px)' }}
+          />
+          <div
+            className="relative surface-raised p-6 sm:p-8 max-w-sm w-full text-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mx-auto w-32 h-32 rounded-lg overflow-hidden border border-white/10">
-              <Image
-                src="/images/toby.jpg"
-                alt="Toby Flenderson, HR Representative"
-                width={128}
-                height={128}
-                className="w-full h-full object-cover"
-              />
+            <div className="flex flex-col items-center gap-4">
+              <div
+                className="w-32 h-32 overflow-hidden"
+                style={{
+                  borderRadius: 'var(--r-3)',
+                  border: 'var(--hairline-strong)',
+                }}
+              >
+                <Image
+                  src="/images/toby.jpg"
+                  alt="Toby Flenderson, HR Representative"
+                  width={128}
+                  height={128}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className="chip chip--danger">HR Compliance Notice</span>
+              <p
+                className="font-serif italic text-[15px] leading-snug"
+                style={{ color: 'var(--ink-8)' }}
+              >
+                Reminder that there can be absolutely no gambling or wagering in
+                relation to this league.
+              </p>
+              <p className="label">Don&apos;t make Toby come out of the annex.</p>
+              <button
+                type="button"
+                onClick={() => setShowToby(false)}
+                className="btn btn--sm"
+              >
+                Go back to the annex, Toby.
+              </button>
             </div>
-            <p className="text-red-400 font-bold text-sm leading-snug">
-              Reminder that there can be absolutely no gambling or wagering in relation to this league.
-            </p>
-            <p className="text-text-muted text-xs">
-              Don&apos;t make Toby come out of the annex.
-            </p>
-            <button
-              onClick={() => setShowToby(false)}
-              className="px-4 py-2 bg-bg-tertiary text-text-secondary text-xs rounded-lg hover:bg-white/10 transition-colors border border-white/10"
-            >
-              Go back to the annex, Toby.
-            </button>
           </div>
         </div>
       )}

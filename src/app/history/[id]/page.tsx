@@ -39,10 +39,33 @@ interface ArchiveData {
   id: string;
   season_id: string;
   final_standings: Record<string, LeagueStandings>;
-  champion: { teamName: string; leagueName: string; leagueColor: string; avatar: string | null } | null;
+  champion: {
+    teamName: string;
+    leagueName: string;
+    leagueColor: string;
+    avatar: string | null;
+  } | null;
   awards: Record<string, Award> | null;
   archived_at: string;
   seasons: { year: string };
+}
+
+function AwardCell({
+  title,
+  value,
+  detail,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="award-cell">
+      <span className="award-cell__lab">{title}</span>
+      <span className="award-cell__name">{value}</span>
+      <span className="award-cell__detail">{detail}</span>
+    </div>
+  );
 }
 
 export default function SeasonArchivePage() {
@@ -59,19 +82,35 @@ export default function SeasonArchivePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading...</p>
+      <div className="wrap" style={{ padding: '64px 0', textAlign: 'center' }}>
+        <p style={{ color: 'var(--ink-5)' }}>Loading archive...</p>
       </div>
     );
   }
 
   if (!archive) {
     return (
-      <div className="glass-card p-12 text-center space-y-4">
-        <h2 className="text-xl font-bold text-white">Archive Not Found</h2>
-        <Link href="/history" className="text-primary hover:underline">
-          Back to History
-        </Link>
+      <div className="wrap">
+        <div
+          className="surface-raised"
+          style={{ padding: 48, textAlign: 'center', margin: '32px 0' }}
+        >
+          <div
+            className="font-display"
+            style={{
+              fontSize: 32,
+              color: 'var(--ink-8)',
+              textTransform: 'uppercase',
+              letterSpacing: 'var(--tr-wide)',
+              marginBottom: 12,
+            }}
+          >
+            ARCHIVE NOT FOUND
+          </div>
+          <Link href="/history" className="btn btn--ghost">
+            ← Back to History
+          </Link>
+        </div>
       </div>
     );
   }
@@ -80,171 +119,157 @@ export default function SeasonArchivePage() {
   const awards = archive.awards;
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <Link href="/history" className="text-primary text-sm hover:underline mb-1 block">
-            &larr; All Seasons
-          </Link>
-          <h1 className="text-3xl font-extrabold text-white">{year} Season</h1>
-        </div>
-        <span className="text-xs text-text-muted">
-          Archived {new Date(archive.archived_at).toLocaleDateString()}
-        </span>
+    <>
+      <div className="crumb-bar">
+        <Link href="/">HOME</Link>
+        <span className="sep">/</span>
+        <Link href="/history">HISTORY</Link>
+        <span className="sep">/</span>
+        <b>{year}</b>
       </div>
 
-      {/* Champion banner */}
-      {archive.champion && (
-        <div className="glass-card p-6 text-center space-y-2 border border-accent-gold/30 bg-accent-gold/5">
-          <p className="text-accent-gold text-sm font-semibold uppercase tracking-wider">
-            Champion
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            {archive.champion.avatar ? (
-              <img src={archive.champion.avatar} alt="" className="w-12 h-12 rounded-full" />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-bg-tertiary" />
-            )}
-            <div>
-              <p className="text-2xl font-extrabold text-white">{archive.champion.teamName}</p>
-              <span
-                className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: `${archive.champion.leagueColor}22`,
-                  color: archive.champion.leagueColor,
-                }}
-              >
-                {archive.champion.leagueName}
-              </span>
-            </div>
+      <div className="wrap">
+        <section className="hist-head">
+          <Link href="/history" className="hist-back">
+            ← ALL SEASONS
+          </Link>
+          <div className="kicker">
+            <span className="kicker__dot" />
+            ARCHIVED{' '}
+            {new Date(archive.archived_at)
+              .toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })
+              .toUpperCase()}
           </div>
-        </div>
-      )}
+          <h1>
+            {year} <em>SEASON.</em>
+          </h1>
+        </section>
 
-      {/* Awards */}
-      {awards && Object.keys(awards).length > 0 && (
-        <div className="glass-card p-6 space-y-4">
-          <h2 className="font-bold text-white text-lg">Season Awards</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {awards.mostPoints && (
-              <AwardCard
-                title="Most Points Scored"
-                value={`${awards.mostPoints.name}`}
-                detail={`${awards.mostPoints.points?.toFixed(1)} PF — ${awards.mostPoints.league}`}
-                icon="🔥"
-              />
-            )}
-            {awards.bestRecord && (
-              <AwardCard
-                title="Best Record"
-                value={`${awards.bestRecord.name}`}
-                detail={`${awards.bestRecord.wins}-${awards.bestRecord.losses} — ${awards.bestRecord.league}`}
-                icon="📈"
-              />
-            )}
-            {awards.topPowerRanked && (
-              <AwardCard
-                title="#1 Power Ranked"
-                value={`${awards.topPowerRanked.name}`}
-                detail={`Score: ${awards.topPowerRanked.score?.toFixed(1)} — ${awards.topPowerRanked.league}`}
-                icon="⚡"
-              />
-            )}
-            {awards.champion && (
-              <AwardCard
-                title="Champion"
-                value={`${awards.champion.name}`}
-                detail={`${awards.champion.league}`}
-                icon="🏆"
-              />
-            )}
+        {archive.champion && (
+          <div className="hist-champ-banner">
+            <span className="kick">★ CHAMPION · {year}</span>
+            <h2 className="name">{archive.champion.teamName}</h2>
+            <span
+              className="chip"
+              style={{
+                background: `${archive.champion.leagueColor}22`,
+                color: archive.champion.leagueColor,
+                borderColor: `${archive.champion.leagueColor}55`,
+              }}
+            >
+              {archive.champion.leagueName}
+            </span>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Final Standings per League */}
-      {Object.keys(archive.final_standings).map((leagueId) => {
-        const league = archive.final_standings[leagueId];
-        if (league.error || !league.standings) return null;
-
-        return (
-          <div key={leagueId} className="glass-card p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.leagueColor }} />
-              <h2 className="font-bold text-white text-lg">{league.leagueName} Final Standings</h2>
+        {awards && Object.keys(awards).length > 0 && (
+          <section style={{ margin: '32px 0 24px' }}>
+            <div
+              className="label"
+              style={{
+                paddingBottom: 10,
+                borderBottom: 'var(--hairline-strong)',
+                marginBottom: 16,
+              }}
+            >
+              SEASON AWARDS
             </div>
+            <div className="awards-grid">
+              {awards.mostPoints && (
+                <AwardCell
+                  title="MOST POINTS"
+                  value={awards.mostPoints.name ?? ''}
+                  detail={`${awards.mostPoints.points?.toFixed(1) ?? '—'} PF · ${awards.mostPoints.league ?? ''}`}
+                />
+              )}
+              {awards.bestRecord && (
+                <AwardCell
+                  title="BEST RECORD"
+                  value={awards.bestRecord.name ?? ''}
+                  detail={`${awards.bestRecord.wins}·${awards.bestRecord.losses} · ${awards.bestRecord.league ?? ''}`}
+                />
+              )}
+              {awards.topPowerRanked && (
+                <AwardCell
+                  title="#1 POWER RANK"
+                  value={awards.topPowerRanked.name ?? ''}
+                  detail={`${awards.topPowerRanked.score?.toFixed(1) ?? '—'} · ${awards.topPowerRanked.league ?? ''}`}
+                />
+              )}
+              {awards.champion && (
+                <AwardCell
+                  title="DUNDIE WINNER"
+                  value={awards.champion.name ?? ''}
+                  detail={awards.champion.league ?? ''}
+                />
+              )}
+            </div>
+          </section>
+        )}
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+        {Object.keys(archive.final_standings).map((leagueId) => {
+          const league = archive.final_standings[leagueId];
+          if (league.error || !league.standings) return null;
+
+          return (
+            <div key={leagueId} className="hist-standings">
+              <div className="hist-standings__hdr">
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: league.leagueColor,
+                  }}
+                />
+                <h3>{league.leagueName} · FINAL STANDINGS</h3>
+              </div>
+              <table>
                 <thead>
-                  <tr className="text-text-muted text-xs uppercase tracking-wider border-b border-white/10">
-                    <th className="text-left py-2 px-2">#</th>
-                    <th className="text-left py-2 px-2">Team</th>
-                    <th className="text-center py-2 px-2">W</th>
-                    <th className="text-center py-2 px-2">L</th>
-                    <th className="text-right py-2 px-2">PF</th>
-                    <th className="text-right py-2 px-2">PA</th>
+                  <tr>
+                    <th>#</th>
+                    <th>TEAM</th>
+                    <th>W</th>
+                    <th>L</th>
+                    <th className="right" style={{ textAlign: 'right' }}>PF</th>
+                    <th className="right" style={{ textAlign: 'right' }}>PA</th>
                   </tr>
                 </thead>
                 <tbody>
                   {league.standings.map((entry, i) => (
-                      <tr
-                        key={entry.rosterId}
-                        className={`border-b border-white/5 ${entry.inPlayoffPosition ? 'bg-accent-green/5' : ''}`}
-                      >
-                        <td className="py-2 px-2 text-text-muted">{i + 1}</td>
-                        <td className="py-2 px-2">
-                          <div className="flex items-center gap-2">
-                            {entry.avatar ? (
-                              <img src={entry.avatar} alt="" className="w-6 h-6 rounded-full bg-bg-tertiary" />
-                            ) : (
-                              <div className="w-6 h-6 rounded-full bg-bg-tertiary" />
-                            )}
-                            <span className="text-white font-medium truncate">
-                              {entry.teamName ?? entry.displayName}
-                            </span>
-                            {entry.inPlayoffPosition && (
-                              <span className="text-accent-green text-[10px]">*</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-2 px-2 text-center text-accent-green stat">{entry.wins}</td>
-                        <td className="py-2 px-2 text-center text-accent-red stat">{entry.losses}</td>
-                        <td className="py-2 px-2 text-right stat text-white">{entry.pointsFor.toFixed(1)}</td>
-                        <td className="py-2 px-2 text-right stat text-text-muted">{entry.pointsAgainst.toFixed(1)}</td>
-                      </tr>
-                    ))}
+                    <tr key={entry.rosterId} className={entry.inPlayoffPosition ? 'playoff' : ''}>
+                      <td>{String(i + 1).padStart(2, '0')}</td>
+                      <td className="team">
+                        {entry.teamName ?? entry.displayName}
+                        {entry.inPlayoffPosition && (
+                          <span style={{ color: 'var(--accent-live)', marginLeft: 6 }}>★</span>
+                        )}
+                      </td>
+                      <td className="win">{entry.wins}</td>
+                      <td className="loss">{entry.losses}</td>
+                      <td className="right">{entry.pointsFor.toFixed(1)}</td>
+                      <td className="right" style={{ color: 'var(--ink-5)' }}>
+                        {entry.pointsAgainst.toFixed(1)}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-text-muted">* Playoff qualifier</p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+          );
+        })}
 
-function AwardCard({
-  title,
-  value,
-  detail,
-  icon,
-}: {
-  title: string;
-  value: string;
-  detail: string;
-  icon: string;
-}) {
-  return (
-    <div className="p-4 rounded-lg bg-bg-tertiary flex items-start gap-3">
-      <span className="text-2xl">{icon}</span>
-      <div>
-        <p className="text-xs text-text-muted uppercase tracking-wider">{title}</p>
-        <p className="text-white font-bold">{value}</p>
-        <p className="text-text-secondary text-xs">{detail}</p>
+        <p
+          className="label"
+          style={{ padding: '0 0 48px', color: 'var(--ink-5)' }}
+        >
+          ★ = PLAYOFF QUALIFIER
+        </p>
       </div>
-    </div>
+    </>
   );
 }

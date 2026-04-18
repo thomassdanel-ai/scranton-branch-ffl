@@ -1,12 +1,13 @@
+import Link from 'next/link';
 import { createServiceClient } from '@/lib/supabase/server';
-import { getActiveSeasonId } from '@/lib/config';
+import { getActiveSeasonId, getSeasonStatus } from '@/lib/config';
 import { sanitizeRecapHtml } from '@/lib/sanitize-html';
+import PhaseStrip from '@/components/layout/PhaseStrip';
 
 async function getPublishedRecaps() {
   const supabase = createServiceClient();
   const seasonId = await getActiveSeasonId();
 
-  // Get latest season if no active
   let sid = seasonId;
   if (!sid) {
     const { data: latest } = await supabase
@@ -30,57 +31,201 @@ async function getPublishedRecaps() {
   return data ?? [];
 }
 
-export default async function RecapsPage() {
-  const recaps = await getPublishedRecaps();
-
-  if (recaps.length === 0) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-extrabold text-white">Weekly Recaps</h1>
-        <div className="glass-card p-8 text-center">
-          <p className="text-text-muted">No recaps published yet. Check back after the season starts.</p>
-        </div>
-      </div>
-    );
+function formatDate(d: string) {
+  try {
+    return new Date(d)
+      .toLocaleDateString('en-US', {
+        month: 'long',
+        day: '2-digit',
+        year: 'numeric',
+      })
+      .toUpperCase();
+  } catch {
+    return '';
   }
+}
+
+export default async function RecapsPage() {
+  const [recaps, status] = await Promise.all([getPublishedRecaps(), getSeasonStatus()]);
+  const latest = recaps[0];
+  const rest = recaps.slice(1);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-extrabold text-white">Weekly Recaps</h1>
-      <div className="space-y-4">
-        {recaps.map((recap) => {
-          const cohort = recap.cohorts as unknown as { name: string; color: string } | null;
-          return (
-            <details key={recap.id} className="glass-card overflow-hidden">
-              <summary className="p-6 cursor-pointer hover:bg-white/5 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="font-bold text-white inline">{recap.subject}</h2>
-                    <span className="text-text-muted text-sm ml-2">Week {recap.week}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {cohort && (
-                      <span
-                        className="text-xs px-2 py-1 rounded-full"
-                        style={{ backgroundColor: cohort.color + '20', color: cohort.color }}
-                      >
-                        {cohort.name}
-                      </span>
-                    )}
-                    <span className="text-text-muted text-xs">
-                      {new Date(recap.sent_at!).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-              </summary>
-              <div
-                className="p-6 pt-0 prose prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: sanitizeRecapHtml(recap.html_content) }}
-              />
-            </details>
-          );
-        })}
+    <>
+      <div className="crumb-bar">
+        <Link href="/">HOME</Link>
+        <span className="sep">/</span>
+        <b>RECAPS</b>
       </div>
-    </div>
+
+      <PhaseStrip year={status.year} phase={status.phase} />
+
+      <article className="wrap-article wrap-article--list">
+        <div className="masthead">
+          <div className="masthead__l">
+            <div className="masthead__issue">THE WEEKLY RECAP</div>
+            <div className="masthead__date">
+              {status.year} SEASON · {recaps.length} {recaps.length === 1 ? 'ISSUE' : 'ISSUES'} PUBLISHED
+            </div>
+          </div>
+          <div className="masthead__r">
+            <span className="chip">
+              <span>ARCHIVE · OPEN</span>
+            </span>
+            <span className="label">PUBLIC</span>
+          </div>
+        </div>
+
+        {recaps.length === 0 ? (
+          <div
+            className="surface-raised"
+            style={{
+              padding: 48,
+              textAlign: 'center',
+              marginTop: 32,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div
+              className="font-display"
+              style={{
+                fontSize: 36,
+                letterSpacing: 'var(--tr-wide)',
+                color: 'var(--ink-8)',
+                textTransform: 'uppercase',
+              }}
+            >
+              NO ISSUES YET
+            </div>
+            <p style={{ color: 'var(--ink-6)', fontSize: 'var(--fs-14)' }}>
+              The commissioner hasn&apos;t sent a recap this season. Check back after Week 1.
+            </p>
+          </div>
+        ) : (
+          <>
+            {latest && (
+              <section style={{ marginBottom: 48 }}>
+                <header className="issue-hero">
+                  <div className="issue-hero__kicker">
+                    <span className="dot" /> WEEK {latest.week} · THE RECAP
+                  </div>
+                  <h1 className="issue-title">{latest.subject}</h1>
+                  <div className="byline">
+                    <span>
+                      BY <b>THE COMMISSIONER</b>
+                    </span>
+                    <span>·</span>
+                    <span>{latest.sent_at ? formatDate(latest.sent_at) : 'DRAFT'}</span>
+                    {(latest.cohorts as unknown as { name: string } | null)?.name && (
+                      <>
+                        <span>·</span>
+                        <span>
+                          {(latest.cohorts as unknown as { name: string }).name.toUpperCase()}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </header>
+
+                <div
+                  className="recap-body"
+                  dangerouslySetInnerHTML={{ __html: sanitizeRecapHtml(latest.html_content) }}
+                />
+
+                <aside className="hr-compliance">
+                  <div className="hr-compliance__img" aria-label="Toby Flenderson" />
+                  <div className="hr-compliance__text">
+                    <div className="hr-compliance__lab">HR COMPLIANCE · REQUIRED NOTICE</div>
+                    <div className="hr-compliance__msg">
+                      Reminder that there can be absolutely no gambling or wagering in relation to
+                      this league.
+                    </div>
+                    <div className="hr-compliance__sub">
+                      Don&apos;t make Toby come out of the annex.
+                    </div>
+                  </div>
+                </aside>
+
+                <div className="meta-footer">
+                  <span>
+                    ISSUE № {String(latest.week).padStart(3, '0')} ·{' '}
+                    {latest.sent_at ? formatDate(latest.sent_at) : ''}
+                  </span>
+                </div>
+              </section>
+            )}
+
+            {rest.length > 0 && (
+              <section>
+                <div
+                  className="label"
+                  style={{
+                    paddingBottom: 12,
+                    borderBottom: 'var(--hairline-strong)',
+                    marginBottom: 16,
+                  }}
+                >
+                  EARLIER ISSUES · {rest.length}
+                </div>
+                {rest.map((recap) => {
+                  const cohort = recap.cohorts as unknown as { name: string; color: string } | null;
+                  return (
+                    <details key={recap.id} className="issue-card">
+                      <summary>
+                        <span className="issue-card__num">
+                          {String(recap.week).padStart(2, '0')}
+                        </span>
+                        <div className="issue-card__body">
+                          <div className="issue-card__title">{recap.subject}</div>
+                          <div className="issue-card__meta">
+                            <span>WEEK {recap.week}</span>
+                            {recap.sent_at && (
+                              <>
+                                <span>·</span>
+                                <span>{formatDate(recap.sent_at)}</span>
+                              </>
+                            )}
+                            {cohort && (
+                              <>
+                                <span>·</span>
+                                <span style={{ color: cohort.color }}>{cohort.name.toUpperCase()}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <span className="issue-card__arrow">›</span>
+                      </summary>
+                      <div className="issue-card__content">
+                        <div
+                          className="recap-body"
+                          dangerouslySetInnerHTML={{
+                            __html: sanitizeRecapHtml(recap.html_content),
+                          }}
+                        />
+                        <aside className="hr-compliance">
+                          <div className="hr-compliance__img" aria-label="Toby Flenderson" />
+                          <div className="hr-compliance__text">
+                            <div className="hr-compliance__lab">HR COMPLIANCE · REQUIRED NOTICE</div>
+                            <div className="hr-compliance__msg">
+                              Reminder that there can be absolutely no gambling or wagering in
+                              relation to this league.
+                            </div>
+                            <div className="hr-compliance__sub">
+                              Don&apos;t make Toby come out of the annex.
+                            </div>
+                          </div>
+                        </aside>
+                      </div>
+                    </details>
+                  );
+                })}
+              </section>
+            )}
+          </>
+        )}
+      </article>
+    </>
   );
 }

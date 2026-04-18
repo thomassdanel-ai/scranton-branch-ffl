@@ -14,18 +14,23 @@ export default function WeekSelector({ currentWeek, leagueId, leagueColor }: Pro
   const selectedWeek = Number(searchParams.get('week')) || currentWeek;
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto pb-2">
+    <div className="week-sel">
       {Array.from({ length: currentWeek }, (_, i) => i + 1).map((week) => {
         const isActive = week === selectedWeek;
         return (
           <button
+            type="button"
             key={week}
             onClick={() => router.push(`/leagues/${leagueId}/matchups?week=${week}`)}
-            className="shrink-0 w-9 h-9 rounded-lg text-sm font-semibold transition-colors"
+            className={`week-cell ${isActive ? 'week-cell--on' : ''}`}
             style={
               isActive
-                ? { backgroundColor: `${leagueColor}22`, color: leagueColor }
-                : { color: '#9ca3af' }
+                ? {
+                    color: leagueColor,
+                    background: `${leagueColor}22`,
+                    borderColor: `${leagueColor}55`,
+                  }
+                : undefined
             }
           >
             {week}

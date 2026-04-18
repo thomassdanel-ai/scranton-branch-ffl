@@ -1,6 +1,8 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { findLeagueBySleeperIdAsync } from '@/lib/config';
+import { findLeagueBySleeperIdAsync, getSeasonStatus } from '@/lib/config';
 import LeagueNav from '@/components/leagues/LeagueNav';
+import PhaseStrip from '@/components/layout/PhaseStrip';
 import type { Metadata } from 'next';
 
 interface Props {
@@ -8,42 +10,46 @@ interface Props {
   children: React.ReactNode;
 }
 
-export async function generateMetadata(props: { params: Promise<{ leagueId: string }> }): Promise<Metadata> {
+export async function generateMetadata(props: {
+  params: Promise<{ leagueId: string }>;
+}): Promise<Metadata> {
   const params = await props.params;
   const league = await findLeagueBySleeperIdAsync(params.leagueId);
   if (!league) return {};
-  return {
-    title: `${league.name} League`,
-  };
+  return { title: `${league.name} League` };
 }
 
 export default async function LeagueLayout(props: Props) {
   const params = await props.params;
-
-  const {
-    children
-  } = props;
+  const { children } = props;
 
   const league = await findLeagueBySleeperIdAsync(params.leagueId);
   if (!league) notFound();
 
+  const status = await getSeasonStatus();
+
   return (
-    <div className="space-y-6">
-      {/* League header */}
-      <div>
-        <div className="flex items-center gap-3 mb-4">
-          <div
-            className="w-1 h-8 rounded-full"
-            style={{ backgroundColor: league.color }}
-          />
-          <h1 className="text-2xl font-extrabold text-white">
-            {league.name} League
-          </h1>
-        </div>
-        <LeagueNav leagueId={params.leagueId} leagueColor={league.color} />
+    <>
+      <div className="crumb-bar">
+        <Link href="/">HOME</Link>
+        <span className="sep">/</span>
+        <b>{league.name.toUpperCase()}</b>
       </div>
 
-      {children}
-    </div>
+      <PhaseStrip year={status.year} phase={status.phase} />
+
+      <div className="wrap">
+        <section className="lg-head">
+          <div className="lg-head__rail">
+            <span className="dot" style={{ background: league.color }} />
+            <span className="label">DIVISION</span>
+          </div>
+          <h1>{league.name}</h1>
+          <LeagueNav leagueId={params.leagueId} leagueColor={league.color} />
+        </section>
+
+        {children}
+      </div>
+    </>
   );
 }

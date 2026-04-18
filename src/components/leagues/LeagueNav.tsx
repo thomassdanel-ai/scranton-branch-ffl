@@ -18,7 +18,7 @@ export default function LeagueNav({ leagueId, leagueColor }: LeagueNavProps) {
   const base = `/leagues/${leagueId}`;
 
   return (
-    <nav className="flex items-center gap-1">
+    <nav className="lg-tabs">
       {tabs.map(({ label, path }) => {
         const href = `${base}${path}`;
         const isActive = pathname === href;
@@ -26,11 +26,15 @@ export default function LeagueNav({ leagueId, leagueColor }: LeagueNavProps) {
           <Link
             key={path}
             href={href}
-            className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+            className={`lg-tab ${isActive ? 'lg-tab--on' : ''}`}
             style={
               isActive
-                ? { backgroundColor: `${leagueColor}22`, color: leagueColor }
-                : { color: '#9ca3af' }
+                ? {
+                    color: leagueColor,
+                    background: `${leagueColor}22`,
+                    borderColor: `${leagueColor}55`,
+                  }
+                : undefined
             }
           >
             {label}

@@ -4,7 +4,10 @@ import { useState, useMemo } from 'react';
 import TransactionCard from './TransactionCard';
 import type { EnrichedTransaction } from '@/lib/transactions/fetch';
 
-type PlayerLookup = Record<string, { player_id: string; full_name: string; position: string; team: string | null }>;
+type PlayerLookup = Record<
+  string,
+  { player_id: string; full_name: string; position: string; team: string | null }
+>;
 
 type Props = {
   transactions: EnrichedTransaction[];
@@ -32,57 +35,47 @@ export default function TransactionsFeed({ transactions, leagues, playerLookup }
   }, [transactions, selectedLeague, selectedType]);
 
   return (
-    <div className="space-y-6">
-      {/* Filter controls */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        {/* League filter */}
-        <div className="flex flex-wrap gap-2">
+    <>
+      <div className="txn-filter-bar">
+        <div className="txn-filter-group">
           <button
+            type="button"
             onClick={() => setSelectedLeague('all')}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-              selectedLeague === 'all'
-                ? 'bg-white/15 text-text-primary'
-                : 'bg-white/5 text-text-muted hover:bg-white/10 hover:text-text-secondary'
-            }`}
+            className={`txn-pill ${selectedLeague === 'all' ? 'txn-pill--on' : ''}`}
           >
-            All Leagues
+            ALL LEAGUES
           </button>
-          {leagues.map((league) => (
-            <button
-              key={league.id}
-              onClick={() => setSelectedLeague(league.id)}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
-              style={{
-                backgroundColor:
-                  selectedLeague === league.id
-                    ? `${league.color}33`
-                    : 'rgba(255,255,255,0.05)',
-                color:
-                  selectedLeague === league.id
-                    ? league.color
-                    : 'var(--color-text-muted)',
-                border:
-                  selectedLeague === league.id
-                    ? `1px solid ${league.color}55`
-                    : '1px solid transparent',
-              }}
-            >
-              {league.name}
-            </button>
-          ))}
+          {leagues.map((league) => {
+            const on = selectedLeague === league.id;
+            return (
+              <button
+                key={league.id}
+                type="button"
+                onClick={() => setSelectedLeague(league.id)}
+                className="txn-pill"
+                style={
+                  on
+                    ? {
+                        color: league.color,
+                        background: `${league.color}22`,
+                        borderColor: `${league.color}66`,
+                      }
+                    : undefined
+                }
+              >
+                {league.shortName}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Type filter */}
-        <div className="flex flex-wrap gap-2 sm:ml-auto">
+        <div className="txn-filter-group">
           {TYPE_FILTERS.map((filter) => (
             <button
               key={filter.value}
+              type="button"
               onClick={() => setSelectedType(filter.value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                selectedType === filter.value
-                  ? 'bg-white/15 text-text-primary'
-                  : 'bg-white/5 text-text-muted hover:bg-white/10 hover:text-text-secondary'
-              }`}
+              className={`txn-pill ${selectedType === filter.value ? 'txn-pill--on' : ''}`}
             >
               {filter.label}
             </button>
@@ -90,24 +83,35 @@ export default function TransactionsFeed({ transactions, leagues, playerLookup }
         </div>
       </div>
 
-      {/* Results count */}
-      <p className="text-sm text-text-muted">
-        <span className="stat">{filtered.length}</span>{' '}
-        transaction{filtered.length !== 1 ? 's' : ''}
-      </p>
+      <div className="txn-count" style={{ padding: '8px 0 16px' }}>
+        <span className="n">{filtered.length}</span>{' '}
+        {filtered.length === 1 ? 'MOVE' : 'MOVES'}
+      </div>
 
-      {/* Transaction list */}
       {filtered.length === 0 ? (
-        <div className="glass-card p-8 text-center">
-          <p className="text-text-muted">No transactions match the selected filters.</p>
+        <div
+          className="surface-raised"
+          style={{
+            padding: 40,
+            textAlign: 'center',
+            marginBottom: 48,
+          }}
+        >
+          <p style={{ color: 'var(--ink-5)', fontSize: 'var(--fs-14)' }}>
+            No transactions match the selected filters.
+          </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="txn-list">
           {filtered.map((txn) => (
-            <TransactionCard key={`${txn.leagueId}-${txn.transaction_id}`} transaction={txn} playerLookup={playerLookup} />
+            <TransactionCard
+              key={`${txn.leagueId}-${txn.transaction_id}`}
+              transaction={txn}
+              playerLookup={playerLookup}
+            />
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }

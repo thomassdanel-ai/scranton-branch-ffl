@@ -23,80 +23,119 @@ export default function HistoryPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold text-white">Season History</h1>
-        <p className="text-text-secondary mt-1">
-          Past seasons preserved for all time.
-        </p>
+    <>
+      <div className="crumb-bar">
+        <Link href="/">HOME</Link>
+        <span className="sep">/</span>
+        <b>HISTORY</b>
       </div>
 
-      {archives.length === 0 ? (
-        <div className="glass-card p-12 text-center space-y-4">
-          <div className="text-5xl">📚</div>
-          <h2 className="text-xl font-bold text-white">No Archives Yet</h2>
-          <p className="text-text-secondary max-w-md mx-auto">
-            Season archives will appear here after the commissioner snapshots a completed season
-            from the admin panel.
+      <div className="wrap">
+        <section className="hist-head">
+          <div className="kicker">
+            <span className="kicker__dot" />
+            {loading ? 'LOADING ARCHIVE' : `${archives.length} SEASONS ARCHIVED`}
+          </div>
+          <h1>
+            THE <em>RECORD</em>
+            <br />
+            BOOK.
+          </h1>
+          <p className="sub">
+            Past seasons preserved for all time. Every champion, every standing, every awkward
+            pre-draft message screenshotted and saved.
           </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {archives.map((archive) => {
-            const year = archive.seasons?.year ?? 'Unknown';
-            const champion = archive.champion;
-            const awards = archive.awards as Record<string, { name?: string; league?: string }> | null;
+        </section>
 
-            return (
-              <Link
-                key={archive.id}
-                href={`/history/${archive.id}`}
-                className="glass-card p-6 hover:bg-white/5 transition-colors space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-extrabold text-white">{year} Season</h2>
-                  <span className="text-xs text-text-muted">
-                    Archived {new Date(archive.archived_at).toLocaleDateString()}
-                  </span>
-                </div>
+        {loading ? (
+          <div
+            className="surface-raised"
+            style={{ padding: 40, textAlign: 'center', margin: '24px 0' }}
+          >
+            <p style={{ color: 'var(--ink-5)', fontSize: 'var(--fs-14)' }}>Loading archive...</p>
+          </div>
+        ) : archives.length === 0 ? (
+          <div
+            className="surface-raised"
+            style={{
+              padding: 48,
+              textAlign: 'center',
+              margin: '24px 0',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div
+              className="font-display"
+              style={{
+                fontSize: 36,
+                letterSpacing: 'var(--tr-wide)',
+                color: 'var(--ink-8)',
+                textTransform: 'uppercase',
+              }}
+            >
+              NO ARCHIVES YET
+            </div>
+            <p style={{ color: 'var(--ink-6)', maxWidth: 480, margin: '0 auto', fontSize: 'var(--fs-14)' }}>
+              Season archives will appear here after the commissioner snapshots a completed season
+              from the admin panel.
+            </p>
+          </div>
+        ) : (
+          <div className="hist-grid">
+            {archives.map((archive) => {
+              const year = archive.seasons?.year ?? 'Unknown';
+              const champion = archive.champion;
+              const awards = archive.awards as Record<
+                string,
+                { name?: string; league?: string }
+              > | null;
 
-                {champion ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-accent-gold">🏆</span>
-                    <span className="text-white font-semibold">{champion.teamName}</span>
-                    <span
-                      className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                      style={{
-                        backgroundColor: `${champion.leagueColor}22`,
-                        color: champion.leagueColor,
-                      }}
-                    >
-                      {champion.leagueName}
+              return (
+                <Link key={archive.id} href={`/history/${archive.id}`} className="hist-card">
+                  <div className="hist-card__hdr">
+                    <span className="hist-card__year">{year}</span>
+                    <span className="hist-card__date">
+                      ARCHIVED {new Date(archive.archived_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      }).toUpperCase()}
                     </span>
                   </div>
-                ) : (
-                  <p className="text-text-muted text-sm">No champion recorded</p>
-                )}
 
-                {awards?.bestRecord && (
-                  <p className="text-xs text-text-secondary">
-                    Best Record: {awards.bestRecord.name} ({awards.bestRecord.league})
-                  </p>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
+                  {champion ? (
+                    <div className="hist-card__champ">
+                      <span className="icon">★</span>
+                      <span className="name">{champion.teamName}</span>
+                      <span
+                        className="chip"
+                        style={{
+                          background: `${champion.leagueColor}22`,
+                          color: champion.leagueColor,
+                          borderColor: `${champion.leagueColor}55`,
+                        }}
+                      >
+                        {champion.leagueName}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="hist-card__note">No champion recorded</p>
+                  )}
+
+                  {awards?.bestRecord && (
+                    <p className="hist-card__note">
+                      Best Record · {awards.bestRecord.name} ({awards.bestRecord.league})
+                    </p>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

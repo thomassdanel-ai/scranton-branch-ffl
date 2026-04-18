@@ -1,34 +1,39 @@
 import type { Metadata } from 'next';
-import { Bricolage_Grotesque, Onest, JetBrains_Mono } from 'next/font/google';
+import { Bebas_Neue, Geist, Geist_Mono, Fraunces } from 'next/font/google';
 import '@/styles/globals.css';
 import Nav from '@/components/layout/Nav';
 import Footer from '@/components/layout/Footer';
-import AuroraBackground from '@/components/ui/AuroraBackground';
 import { ConfigProvider } from '@/components/providers/ConfigProvider';
 import type { MemberIdentity } from '@/components/providers/ConfigProvider';
 import { getSeasonLeagues, getActiveSeasonYear } from '@/lib/config';
 import { getMemberScope } from '@/lib/member-scope';
 import { ORG_NAME, ORG_SHORT_NAME } from '@/config/constants';
 
-const bricolage = Bricolage_Grotesque({
+const bebas = Bebas_Neue({
   subsets: ['latin'],
   variable: '--font-display',
   display: 'swap',
-  weight: ['400', '500', '600', '700', '800'],
+  weight: ['400'],
 });
 
-const onest = Onest({
+const geist = Geist({
   subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',
-  weight: ['400', '500', '600', '700'],
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
   display: 'swap',
+});
+
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-serif',
+  display: 'swap',
   weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://scranton-branch-ffl.vercel.app';
@@ -85,12 +90,13 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${bricolage.variable} ${onest.variable} ${jetbrainsMono.variable}`}
+      data-theme="dark"
+      className={`${bebas.variable} ${geist.variable} ${geistMono.variable} ${fraunces.variable}`}
     >
-      <body className="min-h-screen flex flex-col bg-bg-primary text-text-primary antialiased font-sans">
+      <body className="min-h-screen flex flex-col antialiased font-sans">
         <ConfigProvider leagues={leagues} seasonYear={seasonYear} member={member}>
           <Nav />
-          <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-8 relative z-10">
+          <main className="flex-1 w-full">
             {children}
           </main>
           <Footer />

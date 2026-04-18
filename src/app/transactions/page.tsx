@@ -1,8 +1,9 @@
+import Link from 'next/link';
 import { getAllTransactions } from '@/lib/transactions/fetch';
 import { getSeasonLeagues, getSeasonStatus } from '@/lib/config';
 import TransactionsFeed from '@/components/transactions/TransactionsFeed';
 import { getPlayerLookup } from '@/lib/players/cache';
-import OffSeasonBanner from '@/components/ui/OffSeasonBanner';
+import PhaseStrip from '@/components/layout/PhaseStrip';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,18 +32,36 @@ export default async function TransactionsPage() {
   }));
 
   return (
-    <div className="space-y-6">
-      {status.isOffSeason && <OffSeasonBanner year={status.year} />}
-      <div>
-        <h1 className="text-3xl font-extrabold text-white">Transactions</h1>
-        <p className="text-text-secondary mt-1">
-          All moves across{' '}
-          {leagues.map((l) => l.name).join(' & ')}{' '}
-          leagues.
-        </p>
+    <>
+      <div className="crumb-bar">
+        <Link href="/">HOME</Link>
+        <span className="sep">/</span>
+        <b>TRANSACTIONS</b>
       </div>
 
-      <TransactionsFeed transactions={transactions} leagues={leagueProps} playerLookup={playerLookup} />
-    </div>
+      <PhaseStrip year={status.year} phase={status.phase} />
+
+      <div className="wrap">
+        <section className="txn-head">
+          <div className="kicker">
+            <span className="kicker__dot" />
+            THE WIRE · {leagues.length} LEAGUES · {status.year}
+          </div>
+          <h1>
+            THE <em>WIRE.</em>
+          </h1>
+          <p className="sub">
+            Every trade, waiver claim, and free agent pickup across{' '}
+            {leagues.map((l) => l.name).join(' & ')}. Receipts included.
+          </p>
+        </section>
+
+        <TransactionsFeed
+          transactions={transactions}
+          leagues={leagueProps}
+          playerLookup={playerLookup}
+        />
+      </div>
+    </>
   );
 }
