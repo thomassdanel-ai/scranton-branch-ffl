@@ -444,7 +444,8 @@ hr { border: none; border-top: var(--hairline); margin: 0; }
   border: 1.5px solid var(--ink-0); border-radius: 3px;
   clip-path: polygon(0 0, 100% 0, 100% 50%, 50% 100%, 0 100%);
 }
-.topnav__links { display: flex; gap: 2px; }
+.topnav__links { display: none; gap: 2px; }
+@media (min-width: 768px) { .topnav__links { display: flex; } }
 .topnav__link {
   height: 32px; padding: 0 10px; border-radius: var(--r-2);
   display: inline-flex; align-items: center;

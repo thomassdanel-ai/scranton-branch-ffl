@@ -40,7 +40,7 @@ export default function Nav() {
             <span className="hidden sm:inline">{ORG_SHORT_NAME}</span>
           </Link>
 
-          <nav className="topnav__links hidden md:flex">
+          <nav className="topnav__links">
             {visibleLinks.map(({ href, label }) => {
               const active = pathname === href || (href !== '/' && pathname.startsWith(href));
               return (
