@@ -272,13 +272,13 @@ export default async function HomePage() {
                   : `${status.year} Season · ${status.phase ? status.phase.replace('_', ' ') : 'Off-Season'}`}
               </div>
               <h1 className="hero-head">
-                The league,<br />
-                one <em>heads-up</em>.
+                World&apos;s best<br />
+                <em>league</em>.
               </h1>
               <p className="hero-sub">
-                Every score, every move, every petty grievance across all divisions — in a
-                single console. Ranked ladder, championship bracket, and the wire all refresh
-                in real time.
+                Every score, every waiver, every Jim-to-Dwight jab across all divisions — faxed
+                straight to the bullpen. Ranked ladder, championship bracket, and the wire
+                refresh in real time. Dwight is watching.
               </p>
 
               <div className="cohort-row">
