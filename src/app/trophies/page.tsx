@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { getActiveSeasonId } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 300; // 5 minutes
+export const revalidate = 300;
 
 type ResultRow = {
   week: number;
@@ -41,7 +41,6 @@ export default async function TrophyCasePage() {
     return <EmptyState />;
   }
 
-  // Member identity map for every member_season in the active season.
   const { data: memberSeasons } = await supabase
     .from('member_seasons')
     .select('id, members(display_name, full_name), leagues(name, color)')
@@ -53,13 +52,12 @@ export default async function TrophyCasePage() {
     const l = ms.leagues as unknown as { name: string; color: string } | null;
     meta.set(ms.id, {
       id: ms.id,
-      name: m?.display_name || m?.full_name || '—',
+      name: m?.display_name || m?.full_name || '\u2014',
       leagueName: l?.name ?? '',
       leagueColor: l?.color ?? '#888',
     });
   }
 
-  // Regular-season rows only; bracket games are their own category.
   const { data: raw } = await supabase
     .from('weekly_results')
     .select('week, points, opponent_points, result, member_season_id, is_bracket, is_playoff')
@@ -68,7 +66,6 @@ export default async function TrophyCasePage() {
 
   const results = (raw ?? []) as ResultRow[];
 
-  // Build per-member timeline for streak + accumulations.
   const byMember = new Map<string, ResultRow[]>();
   for (const r of results) {
     if (!r.member_season_id) continue;
@@ -82,7 +79,6 @@ export default async function TrophyCasePage() {
 
   const awards: Award[] = [];
 
-  // Highest single-game score
   let hi: ResultRow | null = null;
   for (const r of results) if (!hi || r.points > hi.points) hi = r;
   if (hi) {
@@ -93,13 +89,12 @@ export default async function TrophyCasePage() {
       winner: m?.name ?? null,
       value: hi.points.toFixed(1),
       sub: `Week ${hi.week}`,
-      icon: '🏆',
+      icon: '\u{1F3C6}',
       league: m?.leagueName,
       leagueColor: m?.leagueColor,
     });
   }
 
-  // Lowest single-game score (World's Worst Boss)
   let lo: ResultRow | null = null;
   for (const r of results) if (!lo || r.points < lo.points) lo = r;
   if (lo && lo !== hi) {
@@ -110,13 +105,12 @@ export default async function TrophyCasePage() {
       winner: m?.name ?? null,
       value: lo.points.toFixed(1),
       sub: `Week ${lo.week}`,
-      icon: '📉',
+      icon: '\u{1F4C9}',
       league: m?.leagueName,
       leagueColor: m?.leagueColor,
     });
   }
 
-  // Biggest blowout (largest margin of victory, winner's perspective)
   let blow: { row: ResultRow; margin: number } | null = null;
   for (const r of results) {
     if (r.result !== 'win' || r.opponent_points == null) continue;
@@ -130,14 +124,13 @@ export default async function TrophyCasePage() {
       tagline: 'Biggest blowout',
       winner: m?.name ?? null,
       value: `+${blow.margin.toFixed(1)}`,
-      sub: `Week ${blow.row.week} · ${blow.row.points.toFixed(1)}–${(blow.row.opponent_points ?? 0).toFixed(1)}`,
-      icon: '🌶️',
+      sub: `Week ${blow.row.week} \u00b7 ${blow.row.points.toFixed(1)}\u2013${(blow.row.opponent_points ?? 0).toFixed(1)}`,
+      icon: '\u{1F336}',
       league: m?.leagueName,
       leagueColor: m?.leagueColor,
     });
   }
 
-  // Narrowest escape (smallest positive margin)
   let squeak: { row: ResultRow; margin: number } | null = null;
   for (const r of results) {
     if (r.result !== 'win' || r.opponent_points == null) continue;
@@ -153,13 +146,12 @@ export default async function TrophyCasePage() {
       winner: m?.name ?? null,
       value: `+${squeak.margin.toFixed(2)}`,
       sub: `Week ${squeak.row.week}`,
-      icon: '😬',
+      icon: '\u{1F62C}',
       league: m?.leagueName,
       leagueColor: m?.leagueColor,
     });
   }
 
-  // Longest win streak
   let longestW: { memberSeasonId: string; len: number } = { memberSeasonId: '', len: 0 };
   let longestL: { memberSeasonId: string; len: number } = { memberSeasonId: '', len: 0 };
   Array.from(byMember.entries()).forEach(([msId, arr]: [string, ResultRow[]]) => {
@@ -187,8 +179,8 @@ export default async function TrophyCasePage() {
       tagline: 'Longest win streak',
       winner: m?.name ?? null,
       value: `${longestW.len}-game`,
-      sub: 'Unstoppable. That’s what she said.',
-      icon: '🔥',
+      sub: 'Unstoppable. That\u2019s what she said.',
+      icon: '\u{1F525}',
       league: m?.leagueName,
       leagueColor: m?.leagueColor,
     });
@@ -200,14 +192,13 @@ export default async function TrophyCasePage() {
       tagline: 'Longest losing streak',
       winner: m?.name ?? null,
       value: `${longestL.len}-game`,
-      sub: 'Just… please go home.',
-      icon: '🪑',
+      sub: 'Just\u2026 please go home.',
+      icon: '\u{1FA91}',
       league: m?.leagueName,
       leagueColor: m?.leagueColor,
     });
   }
 
-  // Most points scored (season-long)
   let topPF: { memberSeasonId: string; total: number } = { memberSeasonId: '', total: 0 };
   Array.from(byMember.entries()).forEach(([msId, arr]: [string, ResultRow[]]) => {
     const total = arr.reduce((s: number, r: ResultRow) => s + (r.points ?? 0), 0);
@@ -221,22 +212,18 @@ export default async function TrophyCasePage() {
       winner: m?.name ?? null,
       value: topPF.total.toFixed(1),
       sub: `${(byMember.get(topPF.memberSeasonId)?.length ?? 0)} games`,
-      icon: '💼',
+      icon: '\u{1F4BC}',
       league: m?.leagueName,
       leagueColor: m?.leagueColor,
     });
   }
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-10">
-      <div className="mb-8 text-center">
-        <div className="text-text-muted text-xs uppercase tracking-[0.3em] mb-2">
-          The Dundies
-        </div>
-        <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-2">
-          Trophy Case
-        </h1>
-        <p className="text-text-secondary">
+    <main className="col col--lg" style={{ maxWidth: 1200, padding: '40px 16px' }}>
+      <div className="page-hero page-hero--center">
+        <div className="page-hero__kicker">The Dundies</div>
+        <h1 className="page-hero__title">Trophy Case</h1>
+        <p className="page-hero__sub">
           The definitive, non-negotiable, Michael-Scott-approved awards for this season.
         </p>
       </div>
@@ -244,16 +231,19 @@ export default async function TrophyCasePage() {
       {awards.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="trophy-grid">
           {awards.map((a) => (
             <TrophyCard key={a.title} award={a} />
           ))}
         </div>
       )}
 
-      <div className="mt-10 text-center">
-        <Link href="/" className="text-text-muted hover:text-white text-sm">
-          ← Back to the bullpen
+      <div style={{ textAlign: 'center', marginTop: 32 }}>
+        <Link
+          href="/"
+          style={{ color: 'var(--ink-5)', font: '500 var(--fs-13) / 1 var(--font-mono)' }}
+        >
+          &larr; Back to the bullpen
         </Link>
       </div>
     </main>
@@ -261,42 +251,36 @@ export default async function TrophyCasePage() {
 }
 
 function TrophyCard({ award }: { award: Award }) {
+  const leagueColor = award.leagueColor ?? '#888';
   return (
-    <div className="group relative bg-bg-secondary/60 border border-bg-tertiary rounded-2xl p-5 overflow-hidden transition-transform hover:-translate-y-0.5">
-      {/* Aurora glow on hover */}
+    <div className="trophy-card">
       <div
-        className="absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+        className="trophy-card__glow"
         style={{
-          background: `radial-gradient(ellipse at top, ${award.leagueColor ?? '#E056FF'}20, transparent 60%)`,
+          background: `radial-gradient(ellipse at top, ${leagueColor}20, transparent 60%)`,
         }}
       />
-      <div className="relative">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-3xl">{award.icon}</span>
+      <div className="trophy-card__body">
+        <div className="trophy-card__top">
+          <span className="trophy-card__icon">{award.icon}</span>
           {award.league && (
             <span
-              className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold uppercase tracking-wider"
+              className="trophy-card__league"
               style={{
-                backgroundColor: `${award.leagueColor}1a`,
-                color: award.leagueColor,
-                border: `1px solid ${award.leagueColor}55`,
+                backgroundColor: `${leagueColor}1a`,
+                color: leagueColor,
+                border: `1px solid ${leagueColor}55`,
               }}
             >
               {award.league}
             </span>
           )}
         </div>
-        <div className="text-[11px] uppercase tracking-widest text-text-muted font-semibold mb-1">
-          {award.title}
-        </div>
-        <div className="text-lg font-bold text-white mb-0.5">
-          {award.winner ?? '—'}
-        </div>
-        <div className="text-2xl font-mono font-bold text-accent-gold mb-2">
-          {award.value}
-        </div>
-        <div className="text-xs text-text-muted">{award.tagline}</div>
-        <div className="text-xs text-text-secondary mt-1">{award.sub}</div>
+        <div className="trophy-card__title">{award.title}</div>
+        <div className="trophy-card__winner">{award.winner ?? '\u2014'}</div>
+        <div className="trophy-card__val">{award.value}</div>
+        <div className="trophy-card__tagline">{award.tagline}</div>
+        <div className="trophy-card__sub">{award.sub}</div>
       </div>
     </div>
   );
@@ -304,10 +288,10 @@ function TrophyCard({ award }: { award: Award }) {
 
 function EmptyState() {
   return (
-    <div className="bg-bg-secondary/60 border border-bg-tertiary rounded-xl p-10 text-center">
-      <div className="text-4xl mb-3">🏆</div>
-      <div className="text-white font-semibold text-lg mb-1">Awards ceremony pending.</div>
-      <div className="text-text-muted text-sm">
+    <div className="empty-state" style={{ alignItems: 'center', textAlign: 'center' }}>
+      <div style={{ fontSize: 40 }}>&#127942;</div>
+      <div className="empty-state__title">Awards ceremony pending.</div>
+      <div className="empty-state__body">
         Michael is still writing the speeches. Come back once Week 1 wraps.
       </div>
     </div>

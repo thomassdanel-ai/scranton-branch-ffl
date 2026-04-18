@@ -67,18 +67,18 @@ export default function RegisterPage(props: { params: Promise<{ token: string }>
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <p style={{ color: 'var(--ink-5)', font: '500 var(--fs-13) / 1 var(--font-mono)' }}>Loading&hellip;</p>
       </div>
     );
   }
 
   if (error && !cohort) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="glass-card p-8 w-full max-w-sm text-center">
-          <h1 className="text-xl font-bold text-white mb-2">Oops</h1>
-          <p className="text-text-muted">{error}</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '24px 16px' }}>
+        <div className="empty-state" style={{ maxWidth: 420, width: '100%' }}>
+          <div className="empty-state__title">Oops</div>
+          <div className="empty-state__body">{error}</div>
         </div>
       </div>
     );
@@ -86,72 +86,83 @@ export default function RegisterPage(props: { params: Promise<{ token: string }>
 
   if (submitted) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="glass-card p-8 w-full max-w-sm text-center space-y-3">
-          <div className="text-4xl">&#127944;</div>
-          <h1 className="text-xl font-bold text-white">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '24px 16px' }}>
+        <div className="empty-state" style={{ maxWidth: 420, width: '100%', alignItems: 'center', textAlign: 'center' }}>
+          <div style={{ fontSize: 44 }}>&#127944;</div>
+          <div className="empty-state__title">
             {alreadyRegistered ? 'Already Registered!' : "You're In!"}
-          </h1>
-          <p className="text-text-muted">
+          </div>
+          <div className="empty-state__body">
             {alreadyRegistered
               ? `You were already registered for ${cohort?.name}.`
               : `You've been registered for ${cohort?.name} (${cohort?.seasonYear} season). The commissioner will be in touch.`}
-          </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <form onSubmit={handleSubmit} className="glass-card p-8 w-full max-w-sm space-y-4">
-        <div className="text-center space-y-1">
-          <h1 className="text-xl font-bold text-white">{cohort?.name}</h1>
-          <p className="text-text-muted text-sm">{cohort?.seasonYear} Season Registration</p>
-          <p className="text-text-muted text-xs">{cohort?.registeredCount} already signed up</p>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '24px 16px' }}>
+      <form
+        onSubmit={handleSubmit}
+        className="wiz-panel col col--sm"
+        style={{ width: '100%', maxWidth: 420 }}
+      >
+        <div style={{ textAlign: 'center' }}>
+          <h1 className="page-head__title" style={{ margin: 0 }}>{cohort?.name}</h1>
+          <p className="wiz-panel__sub" style={{ marginTop: 4 }}>{cohort?.seasonYear} Season Registration</p>
+          <p className="form-hint" style={{ marginTop: 2 }}>{cohort?.registeredCount} already signed up</p>
         </div>
 
-        <input
-          type="text"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          placeholder="Full name"
-          className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-hidden focus:border-primary"
-          autoFocus
-          required
-        />
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          className="w-full px-4 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted focus:outline-hidden focus:border-primary"
-          required
-        />
+        <div className="col col--sm">
+          <label className="label" htmlFor="full-name">Full Name</label>
+          <input
+            id="full-name"
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="First and last name"
+            className="input"
+            autoFocus
+            required
+          />
+        </div>
 
-        {/* Sleeper username with guided walkthrough */}
-        <div className="space-y-2">
-          <div className="flex items-center rounded-lg bg-bg-tertiary border border-white/10 focus-within:border-primary">
-            <span className="pl-4 text-text-muted select-none">@</span>
+        <div className="col col--sm">
+          <label className="label" htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="input"
+            required
+          />
+        </div>
+
+        <div className="col col--sm">
+          <label className="label" htmlFor="sleeper-username">Sleeper Username</label>
+          <div className="input-prefixed">
+            <span className="input-prefixed__prefix">@</span>
             <input
+              id="sleeper-username"
               type="text"
               value={sleeperUsername}
               onChange={(e) => setSleeperUsername(e.target.value)}
-              placeholder="Sleeper username"
-              className="w-full px-2 py-2 bg-transparent text-white placeholder-text-muted focus:outline-hidden"
+              placeholder="sleeper username"
             />
           </div>
-          <p className="text-text-muted text-xs">
-            Used to auto-detect when you join your league on Sleeper
-          </p>
+          <p className="form-hint">Used to auto-detect when you join your league on Sleeper.</p>
 
           <button
             type="button"
             onClick={() => setShowGuide(!showGuide)}
-            className="text-primary text-xs font-medium hover:text-primary-light transition-colors flex items-center gap-1"
+            className={`disclosure-toggle ${showGuide ? 'disclosure-toggle--open' : ''}`}
           >
             <svg
-              className={`w-3 h-3 transition-transform duration-200 ${showGuide ? 'rotate-90' : ''}`}
+              className="disclosure-toggle__chev"
               fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -160,44 +171,40 @@ export default function RegisterPage(props: { params: Promise<{ token: string }>
           </button>
 
           {showGuide && (
-            <div className="rounded-lg bg-white/5 border border-white/10 p-4 space-y-4 text-sm">
+            <div className="guide-box">
               {[
                 { step: 1, title: 'Open the Sleeper app', desc: 'Download Sleeper from the App Store or Google Play if you haven\'t already.' },
                 { step: 2, title: 'Tap your profile icon', desc: 'It\'s in the bottom-right corner of the app.' },
                 { step: 3, title: 'Find your username', desc: 'Your username is shown below your display name. It starts with @.' },
               ].map(({ step, title, desc }) => (
-                <div key={step} className="flex gap-3">
-                  <div className="shrink-0 w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center">
-                    {step}
-                  </div>
-                  <div className="space-y-1.5">
-                    <p className="text-white font-medium">{title}</p>
-                    <p className="text-text-muted text-xs">{desc}</p>
-                    {/* Screenshot placeholder -- drop actual screenshots in /public/images/sleeper-guide/ */}
-                    <img
-                      src={`/images/sleeper-guide/step-${step}.png`}
-                      alt={`Step ${step}: ${title}`}
-                      className="rounded-lg border border-white/10 w-full max-w-[200px] hidden"
-                      onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('hidden'); }}
-                    />
+                <div key={step} className="guide-step">
+                  <div className="guide-step__num">{step}</div>
+                  <div className="guide-step__body">
+                    <div className="guide-step__title">{title}</div>
+                    <div className="guide-step__desc">{desc}</div>
                   </div>
                 </div>
               ))}
-              <p className="text-text-muted text-xs pt-1">
-                Don&apos;t have Sleeper yet? No worries — you can skip this and the commissioner will help match you later.
+              <p className="form-hint">
+                Don&apos;t have Sleeper yet? No worries &mdash; you can skip this and the commissioner will help match you later.
               </p>
             </div>
           )}
         </div>
 
-        {error && <p className="text-accent-red text-sm text-center">{error}</p>}
+        {error && (
+          <p className="form-hint" style={{ color: 'var(--accent-danger)', textAlign: 'center' }}>
+            {error}
+          </p>
+        )}
 
         <button
           type="submit"
           disabled={submitting}
-          className="w-full px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+          className="btn btn--primary btn--lg"
+          style={{ width: '100%' }}
         >
-          {submitting ? 'Registering...' : 'Sign Up'}
+          {submitting ? 'Registering\u2026' : 'Sign Up'}
         </button>
       </form>
     </div>

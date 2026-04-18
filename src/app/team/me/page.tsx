@@ -27,7 +27,6 @@ export default async function TeamMePage() {
 
   const supabase = createServiceClient();
 
-  // Season & league context
   const { data: ms } = await supabase
     .from('member_seasons')
     .select('sleeper_roster_id, season_id, league_id, leagues(name, color, sleeper_league_id)')
@@ -38,7 +37,6 @@ export default async function TeamMePage() {
     | { name: string; color: string; sleeper_league_id: string | null }
     | null;
 
-  // All my weekly results this season, oldest first for the trend chart.
   const { data: myRaw } = await supabase
     .from('weekly_results')
     .select('week, points, opponent_roster_id, opponent_points, result, is_playoff, is_bracket')
@@ -48,7 +46,6 @@ export default async function TeamMePage() {
 
   const myResults = (myRaw ?? []) as WeeklyRow[];
 
-  // League-mates so we can show opponent names in H2H.
   const { data: leagueMates } = await supabase
     .from('member_seasons')
     .select('id, sleeper_roster_id, members(display_name, full_name)')
@@ -66,7 +63,6 @@ export default async function TeamMePage() {
     });
   }
 
-  // Aggregates
   let wins = 0;
   let losses = 0;
   let ties = 0;
@@ -91,7 +87,6 @@ export default async function TeamMePage() {
     if (!worst || (r.points ?? Infinity) < (worst.points ?? Infinity)) worst = r;
   }
 
-  // H2H map: opponent rosterId -> {wins, losses, myPts, theirPts}
   type H2H = { opp: OpponentIdentity; wins: number; losses: number; myPts: number; theirPts: number };
   const h2h = new Map<number, H2H>();
   for (const r of myResults) {
@@ -109,7 +104,6 @@ export default async function TeamMePage() {
     (a, b) => b.wins + b.losses - (a.wins + a.losses) || b.wins - a.wins,
   );
 
-  // Chart scale for week-by-week
   const maxPoints = Math.max(
     100,
     ...myResults.map((r) => Math.max(r.points ?? 0, r.opponent_points ?? 0)),
@@ -120,21 +114,23 @@ export default async function TeamMePage() {
   const avgPa = gamesPlayed > 0 ? pa / gamesPlayed : 0;
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="text-text-muted text-sm uppercase tracking-widest mb-1">
-          Regional Manager&apos;s Desk
-        </div>
-        <h1 className="text-4xl md:text-5xl font-extrabold text-white">
-          {scope.memberName}
-        </h1>
-        <div className="flex items-center gap-3 mt-2 text-text-secondary">
+    <main className="col col--lg" style={{ maxWidth: 1040, padding: '32px 16px' }}>
+      <div className="page-hero">
+        <div className="page-hero__kicker">Regional Manager&apos;s Desk</div>
+        <h1 className="page-hero__title">{scope.memberName}</h1>
+        <div className="row" style={{ marginTop: 6, alignItems: 'center' }}>
           <span
-            className="inline-block w-2.5 h-2.5 rounded-full"
-            style={{ background: league?.color || '#888' }}
+            style={{
+              display: 'inline-block',
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              background: league?.color || 'var(--ink-5)',
+            }}
           />
-          <span className="font-semibold">{league?.name ?? scope.leagueName}</span>
+          <span style={{ color: 'var(--ink-7)', font: '600 var(--fs-14) / 1 var(--font-sans)' }}>
+            {league?.name ?? scope.leagueName}
+          </span>
         </div>
       </div>
 
@@ -142,15 +138,14 @@ export default async function TeamMePage() {
         <EmptyState />
       ) : (
         <>
-          {/* Top stats */}
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+          <section className="stat-grid">
             <StatCard
               label="Record"
-              value={`${wins}–${losses}${ties ? `–${ties}` : ''}`}
+              value={`${wins}\u2013${losses}${ties ? `\u2013${ties}` : ''}`}
             />
             <StatCard
               label="Streak"
-              value={streak.type ? `${streak.type}${streak.count}` : '—'}
+              value={streak.type ? `${streak.type}${streak.count}` : '\u2014'}
               tone={streak.type === 'W' ? 'good' : streak.type === 'L' ? 'bad' : 'neutral'}
             />
             <StatCard
@@ -165,53 +160,49 @@ export default async function TeamMePage() {
             />
           </section>
 
-          {/* Week-by-week bar chart */}
-          <section className="mb-8">
-            <h2 className="text-xs uppercase tracking-widest text-text-muted font-semibold mb-3">
-              Season Arc
-            </h2>
-            <div className="bg-bg-secondary/60 border border-bg-tertiary rounded-xl p-4 overflow-x-auto">
-              <div className="flex items-end gap-2 min-w-[600px]">
+          <section>
+            <div className="label" style={{ marginBottom: 8 }}>Season Arc</div>
+            <div className="bar-chart">
+              <div className="bar-chart__track">
                 {myResults.map((r) => {
                   const myHeight = ((r.points ?? 0) / maxPoints) * 100;
                   const oppHeight = ((r.opponent_points ?? 0) / maxPoints) * 100;
-                  const color =
+                  const barCls =
                     r.result === 'win'
-                      ? 'bg-green-500'
+                      ? 'bar-chart__bar bar-chart__bar--win'
                       : r.result === 'loss'
-                        ? 'bg-red-500'
-                        : 'bg-amber-500';
+                        ? 'bar-chart__bar bar-chart__bar--loss'
+                        : 'bar-chart__bar bar-chart__bar--tie';
                   return (
-                    <div key={r.week} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="h-40 w-full flex items-end gap-0.5">
+                    <div key={r.week} className="bar-chart__col">
+                      <div className="bar-chart__bars">
                         <div
-                          className={`flex-1 rounded-t ${color} transition-all`}
+                          className={barCls}
                           style={{ height: `${myHeight}%` }}
                           title={`Wk ${r.week} — ${(r.points ?? 0).toFixed(1)} pts`}
                         />
                         <div
-                          className="flex-1 rounded-t bg-bg-tertiary"
+                          className="bar-chart__bar bar-chart__bar--opp"
                           style={{ height: `${oppHeight}%` }}
                           title={`Opp — ${(r.opponent_points ?? 0).toFixed(1)} pts`}
                         />
                       </div>
-                      <div className="text-[10px] text-text-muted font-mono">W{r.week}</div>
+                      <div className="bar-chart__wk">W{r.week}</div>
                     </div>
                   );
                 })}
               </div>
-              <div className="flex items-center gap-4 mt-3 text-xs text-text-muted">
-                <LegendDot className="bg-green-500" /> Win
-                <LegendDot className="bg-red-500" /> Loss
-                <LegendDot className="bg-amber-500" /> Tie
-                <LegendDot className="bg-bg-tertiary" /> Opponent
+              <div className="bar-chart__legend">
+                <span className="bar-chart__legend-item"><span className="bar-chart__dot bar-chart__dot--win" /> Win</span>
+                <span className="bar-chart__legend-item"><span className="bar-chart__dot bar-chart__dot--loss" /> Loss</span>
+                <span className="bar-chart__legend-item"><span className="bar-chart__dot bar-chart__dot--tie" /> Tie</span>
+                <span className="bar-chart__legend-item"><span className="bar-chart__dot bar-chart__dot--opp" /> Opponent</span>
               </div>
             </div>
           </section>
 
-          {/* Best / Worst */}
           {(best || worst) && (
-            <section className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+            <section className="hl-grid">
               {best && (
                 <Highlight
                   title="Best Week"
@@ -233,51 +224,42 @@ export default async function TeamMePage() {
             </section>
           )}
 
-          {/* H2H Rivalries */}
           {h2hSorted.length > 0 && (
-            <section className="mb-8">
-              <h2 className="text-xs uppercase tracking-widest text-text-muted font-semibold mb-3">
-                Head-to-Head
-              </h2>
-              <div className="bg-bg-secondary/60 border border-bg-tertiary rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
+            <section>
+              <div className="label" style={{ marginBottom: 8 }}>Head-to-Head</div>
+              <div className="data-table-wrap">
+                <table className="data-table">
                   <thead>
-                    <tr className="bg-bg-tertiary/50 text-text-muted text-xs uppercase tracking-wide">
-                      <th className="text-left px-4 py-2 font-semibold">Opponent</th>
-                      <th className="text-center px-3 py-2 font-semibold">Record</th>
-                      <th className="text-right px-3 py-2 font-semibold">PF</th>
-                      <th className="text-right px-4 py-2 font-semibold">PA</th>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>Opponent</th>
+                      <th style={{ textAlign: 'center' }}>Record</th>
+                      <th style={{ textAlign: 'right' }}>PF</th>
+                      <th style={{ textAlign: 'right' }}>PA</th>
                     </tr>
                   </thead>
                   <tbody>
                     {h2hSorted.map((row) => {
                       const total = row.wins + row.losses;
-                      const winning = row.wins > row.losses;
+                      const recCls =
+                        total === 0
+                          ? 'h2h-rec--none'
+                          : row.wins > row.losses
+                            ? 'h2h-rec--win'
+                            : row.wins < row.losses
+                              ? 'h2h-rec--loss'
+                              : 'h2h-rec--tie';
                       return (
-                        <tr
-                          key={row.opp.rosterId}
-                          className="border-t border-bg-tertiary/60 hover:bg-bg-tertiary/20"
-                        >
-                          <td className="px-4 py-2.5 text-white font-medium">{row.opp.name}</td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span
-                              className={`font-mono ${
-                                total === 0
-                                  ? 'text-text-muted'
-                                  : winning
-                                    ? 'text-green-400'
-                                    : row.wins < row.losses
-                                      ? 'text-red-400'
-                                      : 'text-amber-400'
-                              }`}
-                            >
-                              {row.wins}–{row.losses}
+                        <tr key={row.opp.rosterId}>
+                          <td>{row.opp.name}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={recCls}>
+                              {row.wins}&ndash;{row.losses}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5 text-right font-mono text-text-secondary">
+                          <td className="data-table__muted" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                             {row.myPts.toFixed(1)}
                           </td>
-                          <td className="px-4 py-2.5 text-right font-mono text-text-muted">
+                          <td className="data-table__muted" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                             {row.theirPts.toFixed(1)}
                           </td>
                         </tr>
@@ -291,11 +273,9 @@ export default async function TeamMePage() {
         </>
       )}
 
-      <div className="mt-10 text-xs text-text-muted">
+      <div style={{ marginTop: 24, color: 'var(--ink-5)', font: '500 var(--fs-12) / 1 var(--font-mono)' }}>
         Not you?{' '}
-        <Link href="/identify" className="text-primary hover:underline">
-          Switch member
-        </Link>
+        <Link href="/identify" className="action-link action-link--live">Switch member</Link>
       </div>
     </main>
   );
@@ -312,15 +292,14 @@ function StatCard({
   sub?: string;
   tone?: 'good' | 'bad' | 'neutral';
 }) {
-  const valueColor =
-    tone === 'good' ? 'text-green-400' : tone === 'bad' ? 'text-red-400' : 'text-white';
+  const valCls =
+    tone === 'good' ? 'stat-card__val stat-card__val--good' :
+    tone === 'bad' ? 'stat-card__val stat-card__val--bad' : 'stat-card__val';
   return (
-    <div className="bg-bg-secondary/60 border border-bg-tertiary rounded-xl p-4">
-      <div className="text-[11px] uppercase tracking-widest text-text-muted font-semibold">
-        {label}
-      </div>
-      <div className={`text-3xl font-bold mt-1 ${valueColor}`}>{value}</div>
-      {sub && <div className="text-xs text-text-muted mt-1">{sub}</div>}
+    <div className="stat-card">
+      <div className="stat-card__lab">{label}</div>
+      <div className={valCls}>{value}</div>
+      {sub && <div className="stat-card__sub">{sub}</div>}
     </div>
   );
 }
@@ -338,30 +317,23 @@ function Highlight({
   opp: number | null;
   tone: 'good' | 'bad';
 }) {
-  const accent = tone === 'good' ? 'border-green-500/40 bg-green-500/5' : 'border-red-500/40 bg-red-500/5';
   return (
-    <div className={`rounded-xl border ${accent} p-4`}>
-      <div className="text-[11px] uppercase tracking-widest text-text-muted font-semibold">
-        {title}
-      </div>
-      <div className="mt-1 flex items-baseline gap-3">
-        <span className="text-3xl font-bold text-white">{(points ?? 0).toFixed(1)}</span>
-        <span className="text-sm text-text-muted">vs {(opp ?? 0).toFixed(1)} · Week {week}</span>
+    <div className={`hl-tile hl-tile--${tone}`}>
+      <div className="hl-tile__lab">{title}</div>
+      <div className="hl-tile__body">
+        <span className="hl-tile__big">{(points ?? 0).toFixed(1)}</span>
+        <span className="hl-tile__note">vs {(opp ?? 0).toFixed(1)} &middot; Week {week}</span>
       </div>
     </div>
   );
 }
 
-function LegendDot({ className }: { className: string }) {
-  return <span className={`inline-block w-2.5 h-2.5 rounded-xs ${className}`} />;
-}
-
 function EmptyState() {
   return (
-    <div className="bg-bg-secondary/60 border border-bg-tertiary rounded-xl p-10 text-center">
-      <div className="text-4xl mb-3">📠</div>
-      <div className="text-white font-semibold text-lg mb-1">No games on the board yet.</div>
-      <div className="text-text-muted text-sm">
+    <div className="empty-state" style={{ alignItems: 'center', textAlign: 'center' }}>
+      <div style={{ fontSize: 40 }}>&#128224;</div>
+      <div className="empty-state__title">No games on the board yet.</div>
+      <div className="empty-state__body">
         Faxing preseason numbers to corporate. Your dashboard lights up the second Week 1 kicks off.
       </div>
     </div>

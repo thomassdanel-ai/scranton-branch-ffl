@@ -44,14 +44,13 @@ type MemberSeason = {
   draft_position: number | null;
 };
 
-const posColor: Record<string, string> = {
-  QB: 'text-red-400',
-  RB: 'text-green-400',
-  WR: 'text-blue-400',
-  TE: 'text-yellow-400',
-  K: 'text-purple-400',
-  DEF: 'text-orange-400',
-};
+function statusChip(status: string): { cls: string; label: string } {
+  if (status === 'completed') return { cls: 'chip chip--success', label: 'Complete' };
+  if (status === 'drafting') return { cls: 'chip chip--live', label: 'Live' };
+  if (status === 'paused') return { cls: 'chip chip--warning', label: 'Paused' };
+  if (status === 'pending') return { cls: 'chip chip--warning', label: 'Waiting to Start' };
+  return { cls: 'chip chip--muted', label: status };
+}
 
 export default function PublicDraftBoard() {
   const params = useParams();
@@ -65,7 +64,6 @@ export default function PublicDraftBoard() {
   const [memberSeasons, setMemberSeasons] = useState<MemberSeason[]>([]);
   const [lastPick, setLastPick] = useState<string | null>(null);
 
-  // Timer
   const [timerSeconds, setTimerSeconds] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -92,7 +90,6 @@ export default function PublicDraftBoard() {
     fetchBoard();
   }, [fetchBoard]);
 
-  // Supabase Realtime: subscribe to draft_picks changes (both INSERT and UPDATE for Sleeper sync)
   useEffect(() => {
     if (!boardId) return;
 
@@ -130,7 +127,6 @@ export default function PublicDraftBoard() {
     };
   }, [boardId, fetchBoard]);
 
-  // Poll board status every 10s as fallback
   useEffect(() => {
     const interval = setInterval(fetchBoard, 10000);
     return () => clearInterval(interval);
@@ -180,10 +176,10 @@ export default function PublicDraftBoard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[80vh]">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-text-muted">Loading draft board...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div className="loading-spin" />
+          <p style={{ color: 'var(--ink-5)', font: '500 var(--fs-13) / 1 var(--font-mono)' }}>Loading draft board&hellip;</p>
         </div>
       </div>
     );
@@ -191,11 +187,13 @@ export default function PublicDraftBoard() {
 
   if (!board) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="glass-card p-8 text-center">
-          <h2 className="text-xl font-bold text-white mb-2">Draft Not Found</h2>
-          <p className="text-text-muted">This draft board doesn&apos;t exist or hasn&apos;t been created yet.</p>
-          <Link href="/" className="inline-block mt-4 text-primary hover:underline text-sm">Back to Home</Link>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div className="empty-state" style={{ maxWidth: 480 }}>
+          <div className="empty-state__title">Draft Not Found</div>
+          <div className="empty-state__body">This draft board doesn&apos;t exist or hasn&apos;t been created yet.</div>
+          <Link href="/" className="action-link action-link--live" style={{ marginTop: 10 }}>
+            Back to Home
+          </Link>
         </div>
       </div>
     );
@@ -207,6 +205,7 @@ export default function PublicDraftBoard() {
   const isComplete = board.status === 'completed';
   const isPending = board.status === 'pending';
   const isSleeperLinked = !!board.sleeper_draft_id;
+  const chip = statusChip(board.status);
 
   const currentPickObj = picks.find(
     (p) => p.round === board.current_round && p.pick_in_round === board.current_pick
@@ -214,79 +213,72 @@ export default function PublicDraftBoard() {
   const currentDrafter = currentPickObj ? getMemberName(currentPickObj.member_season_id) : '';
   const madeCount = picks.filter((p) => p.player_name).length;
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white">
-            {leagueName} Draft
-            {board.is_mock && <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded-full">MOCK</span>}
-          </h1>
-          <p className="text-text-muted text-sm">
-            {madeCount}/{picks.length} picks &middot;{' '}
-            {isComplete ? (
-              <span className="text-accent-green font-semibold">Draft Complete</span>
-            ) : isPending ? (
-              <span className="text-yellow-300">Waiting to Start</span>
-            ) : isPaused ? (
-              <span className="text-orange-300">Paused</span>
-            ) : (
-              <span className="text-accent-green">Live</span>
-            )}
-            {isSleeperLinked && board.last_synced_at && (
-              <span className="ml-2 text-text-muted">
-                &middot; Last synced {timeAgo(board.last_synced_at)}
-              </span>
-            )}
-          </p>
-        </div>
+  const timerColor =
+    timerSeconds <= 10 ? 'var(--accent-danger)' : timerSeconds <= 30 ? 'var(--accent-clock)' : 'var(--ink-8)';
 
-        {/* Timer (only for non-Sleeper drafts) */}
-        {!isSleeperLinked && (isDrafting || isPaused) && (
-          <div className="text-center">
-            <p className={`text-4xl font-mono font-bold ${timerSeconds <= 10 ? 'text-red-400 animate-pulse' : timerSeconds <= 30 ? 'text-yellow-300' : 'text-white'}`}>
-              {formatTimer(timerSeconds)}
-            </p>
-            {isPaused && <p className="text-yellow-300 text-xs">PAUSED</p>}
-          </div>
-        )}
+  return (
+    <div className="col col--lg" style={{ maxWidth: 1280, padding: '24px 16px' }}>
+      <div className="page-head" style={{ marginBottom: 0 }}>
+        <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <h1 className="page-head__title" style={{ margin: 0 }}>
+            {leagueName} Draft
+          </h1>
+          {board.is_mock && <span className="chip chip--warning">Mock</span>}
+          <span className={chip.cls}>{chip.label}</span>
+        </div>
+        <p className="wiz-panel__sub" style={{ marginTop: 6 }}>
+          {madeCount}/{picks.length} picks
+          {isSleeperLinked && board.last_synced_at && (
+            <> &middot; Last synced {timeAgo(board.last_synced_at)}</>
+          )}
+        </p>
       </div>
 
-      {/* On the Clock */}
-      {(isDrafting || isPaused) && currentPickObj && (
-        <div className="glass-card p-4 border-l-4 border-primary">
-          <p className="text-text-muted text-xs uppercase tracking-wider">On the Clock</p>
-          <p className="text-2xl font-extrabold text-white">{currentDrafter}</p>
-          <p className="text-text-muted text-sm">
-            Round {board.current_round}, Pick {board.current_pick} &middot; Overall #{currentPickObj.overall_pick}
-          </p>
+      {!isSleeperLinked && (isDrafting || isPaused) && (
+        <div className="wiz-panel" style={{ padding: 18 }}>
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="label">Pick Timer</span>
+            <span style={{ font: `700 40px / 1 var(--font-mono)`, color: timerColor }}>
+              {formatTimer(timerSeconds)}
+              {isPaused && <span style={{ marginLeft: 10, color: 'var(--accent-clock)', fontSize: 12 }}>PAUSED</span>}
+            </span>
+          </div>
         </div>
       )}
 
-      {/* Pending state */}
+      {(isDrafting || isPaused) && currentPickObj && (
+        <div className="on-clock">
+          <div>
+            <div className="on-clock__lab">On the Clock</div>
+            <div className="on-clock__name">{currentDrafter}</div>
+            <div className="on-clock__sub">
+              Round {board.current_round}, Pick {board.current_pick} &middot; Overall #{currentPickObj.overall_pick}
+            </div>
+          </div>
+        </div>
+      )}
+
       {isPending && (
-        <div className="glass-card p-8 text-center">
-          <div className="w-12 h-12 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white mb-2">Draft Starting Soon</h2>
-          <p className="text-text-muted">
+        <div className="empty-state" style={{ alignItems: 'center', textAlign: 'center' }}>
+          <div className="loading-spin loading-spin--lg" />
+          <div className="empty-state__title" style={{ marginTop: 14 }}>Draft Starting Soon</div>
+          <div className="empty-state__body">
             {isSleeperLinked
               ? 'Waiting for the first pick on Sleeper. Picks will sync automatically.'
               : 'Waiting for the commissioner to start the draft. This page will update automatically.'}
-          </p>
+          </div>
         </div>
       )}
 
-      {/* Draft Grid */}
       {!isPending && (
-        <div className="glass-card p-2 sm:p-4 overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="draft-board">
+          <table>
             <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left text-text-muted py-2 px-2 w-12 sticky left-0 bg-bg-secondary z-10">Rd</th>
+              <tr>
+                <th className="draft-board__round-lab">Rd</th>
                 {sortedMS.map((ms) => (
-                  <th key={ms.id} className="text-center text-text-muted py-2 px-1 min-w-[100px]">
-                    <span className="text-white font-semibold text-xs sm:text-sm">{getMemberName(ms.id)}</span>
+                  <th key={ms.id} className="draft-board__member">
+                    <span className="draft-board__member-name">{getMemberName(ms.id)}</span>
                   </th>
                 ))}
               </tr>
@@ -296,26 +288,23 @@ export default function PublicDraftBoard() {
                 const isEven = round % 2 === 0;
                 const colOrder = isEven ? [...sortedMS].reverse() : sortedMS;
                 return (
-                  <tr key={round} className="border-b border-white/5">
-                    <td className="text-text-muted py-1.5 px-2 font-mono text-xs sticky left-0 bg-bg-secondary z-10">{round}</td>
+                  <tr key={round}>
+                    <td className="draft-board__round-lab">{round}</td>
                     {sortedMS.map((ms) => {
                       const colIdx = colOrder.findIndex((c) => c.id === ms.id);
                       const pick = picks.find((p) => p.round === round && p.pick_in_round === colIdx + 1);
                       const isCurrent = pick && board.current_round === round && board.current_pick === colIdx + 1 && (isDrafting || isPaused);
                       const isNew = pick?.id === lastPick;
-
+                      const cellClass = isCurrent || isNew ? 'draft-board__cell draft-board__cell--on' : 'draft-board__cell';
                       return (
-                        <td key={ms.id} className={`text-center py-1 px-1 transition-all duration-300 ${
-                          isCurrent ? 'bg-primary/20 ring-1 ring-primary rounded-sm' :
-                          isNew ? 'bg-accent-green/20 ring-1 ring-accent-green rounded-sm' : ''
-                        }`}>
+                        <td key={ms.id} className={cellClass}>
                           {pick?.player_name ? (
                             <div>
-                              <p className="text-white text-xs font-semibold truncate">{pick.player_name}</p>
-                              <p className={`text-xs ${posColor[pick.position || ''] || 'text-text-muted'}`}>{pick.position}</p>
+                              <span className="draft-board__pick-name">{pick.player_name}</span>
+                              <span className="draft-board__pick-pos pos-text" data-pos={pick.position || ''}>{pick.position}</span>
                             </div>
                           ) : (
-                            <span className="text-text-muted/20 text-xs">#{pick?.overall_pick}</span>
+                            <span className="draft-board__pick-pending">#{pick?.overall_pick}</span>
                           )}
                         </td>
                       );
@@ -328,35 +317,35 @@ export default function PublicDraftBoard() {
         </div>
       )}
 
-      {/* Recent Picks Ticker */}
       {!isPending && madeCount > 0 && (
-        <div className="glass-card p-4">
-          <h3 className="text-white font-bold mb-2 text-sm">Recent Picks</h3>
-          <div className="flex flex-wrap gap-2">
-            {picks.filter((p) => p.player_name).reverse().slice(0, 12).map((pick) => (
-              <div key={pick.id} className={`px-3 py-1.5 rounded-lg bg-bg-tertiary text-xs transition-all duration-300 ${
-                pick.id === lastPick ? 'ring-1 ring-accent-green bg-accent-green/10' : ''
-              }`}>
-                <span className="text-text-muted font-mono">#{pick.overall_pick}</span>{' '}
-                <span className={`font-semibold ${posColor[pick.position || ''] || 'text-white'}`}>{pick.player_name}</span>{' '}
-                <span className="text-text-muted">({getMemberName(pick.member_season_id)})</span>
+        <div className="wiz-panel">
+          <div className="wiz-panel__head">
+            <h2 className="wiz-panel__title">Recent Picks</h2>
+          </div>
+          <div className="pick-ticker">
+            {picks.filter((p) => p.player_name).slice().reverse().slice(0, 12).map((pick) => (
+              <div key={pick.id} className="pick-ticker__row">
+                <span className="pick-ticker__num">#{pick.overall_pick}</span>
+                <span className="pick-ticker__picker">{getMemberName(pick.member_season_id)}</span>
+                <span className="pick-ticker__arrow">&rarr;</span>
+                <span className="pick-ticker__player">{pick.player_name}</span>
+                <span className="pick-ticker__pos pos-text" data-pos={pick.position || ''}>{pick.position}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Completed state */}
       {isComplete && (
-        <div className="glass-card p-6 text-center">
-          <p className="text-3xl mb-2">&#127942;</p>
-          <h2 className="text-xl font-bold text-white mb-2">Draft Complete!</h2>
-          <p className="text-text-muted">{madeCount} players drafted across {board.num_rounds} rounds.</p>
+        <div className="empty-state" style={{ alignItems: 'center', textAlign: 'center' }}>
+          <div style={{ fontSize: 36, marginBottom: 6 }}>&#127942;</div>
+          <div className="empty-state__title">Draft Complete!</div>
+          <div className="empty-state__body">{madeCount} players drafted across {board.num_rounds} rounds.</div>
         </div>
       )}
 
-      <div className="text-center">
-        <Link href="/" className="text-text-muted hover:text-primary text-xs transition-colors">
+      <div style={{ textAlign: 'center', marginTop: 12 }}>
+        <Link href="/" style={{ color: 'var(--ink-5)', font: '500 var(--fs-12) / 1 var(--font-mono)' }}>
           Scranton Branch FFL
         </Link>
       </div>
