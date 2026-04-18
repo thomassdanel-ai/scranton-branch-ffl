@@ -1,33 +1,61 @@
 export default function TransactionsLoading() {
   return (
-    <div className="space-y-6">
-      {/* Title skeleton */}
-      <div>
-        <div className="h-8 w-48 bg-bg-tertiary rounded-lg animate-pulse" />
-        <div className="h-4 w-80 bg-bg-tertiary rounded-sm mt-2 animate-pulse" />
+    <div className="skel-stack" style={{ gap: 20, padding: '24px 0' }}>
+      {/* Headline */}
+      <div className="skel-stack" style={{ gap: 12, maxWidth: 560 }}>
+        <div className="skeleton skel-line" style={{ width: 180 }} />
+        <div className="skeleton skel-line--display" style={{ width: '75%' }} />
+        <div className="skeleton skel-line" style={{ width: 420 }} />
       </div>
 
-      {/* Transaction cards skeleton */}
-      {Array.from({ length: 8 }).map((_, i) => (
+      {/* Filter bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="skeleton"
+              style={{ width: 80, height: 28, borderRadius: 999 }}
+            />
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="skeleton"
+              style={{ width: 64, height: 28, borderRadius: 999 }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Transaction cards */}
+      {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
-          className="glass-card p-4 space-y-3"
-          style={{ opacity: 1 - i * 0.08 }}
+          className="surface-raised"
+          style={{ padding: 20, opacity: 1 - i * 0.1 }}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-5 w-16 bg-bg-tertiary rounded-full animate-pulse" />
-              <div className="h-4 w-32 bg-bg-tertiary rounded-sm animate-pulse" />
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 14,
+              gap: 10,
+            }}
+          >
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div className="skeleton" style={{ width: 60, height: 20, borderRadius: 999 }} />
+              <div className="skeleton" style={{ width: 48, height: 20, borderRadius: 999 }} />
+              <div className="skeleton skel-line" style={{ width: 40 }} />
             </div>
-            <div className="h-3 w-20 bg-bg-tertiary rounded-sm animate-pulse" />
+            <div className="skeleton skel-line" style={{ width: 80 }} />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-4 bg-accent-green/20 rounded-sm animate-pulse" />
-            <div className="h-4 w-36 bg-bg-tertiary rounded-sm animate-pulse" />
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-4 bg-accent-red/20 rounded-sm animate-pulse" />
-            <div className="h-4 w-28 bg-bg-tertiary rounded-sm animate-pulse" />
+          <div className="skel-stack" style={{ gap: 8 }}>
+            <div className="skeleton skel-line--lg" style={{ width: 140 }} />
+            <div className="skeleton skel-line" style={{ width: 220 }} />
+            <div className="skeleton skel-line" style={{ width: 180 }} />
           </div>
         </div>
       ))}

@@ -14,29 +14,22 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-      <p className="text-6xl mb-4">📉</p>
-      <h1 className="text-4xl font-extrabold text-white mb-2 tracking-tight">
-        WRONG!
-      </h1>
-      <p className="text-xl font-semibold text-accent-gold mb-2">
-        Something broke on that play.
-      </p>
-      <p className="text-text-secondary mb-6 max-w-md">
-        Michael is on the phone with Corporate. Dwight is already writing an incident report.
-        Try again — and if it happens twice, tell the commissioner.
+    <div className="error-state">
+      <span className="error-state__kicker">INCIDENT · UNHANDLED</span>
+      <h1 className="error-state__title">Wrong.</h1>
+      <p className="error-state__desc">
+        Something broke on that play. Michael is on the phone with Corporate.
+        Dwight is already writing an incident report. Try again — and if it
+        happens twice, tell the commissioner.
         {error.digest && (
-          <span className="block text-text-muted text-xs mt-2 font-mono">
-            Incident ID: {error.digest}
-          </span>
+          <span className="error-state__incident">INCIDENT {error.digest}</span>
         )}
       </p>
-      <button
-        onClick={reset}
-        className="px-6 py-2.5 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors"
-      >
-        Try Again
-      </button>
+      <div className="error-state__actions">
+        <button type="button" onClick={reset} className="btn btn--primary btn--sm">
+          Try again
+        </button>
+      </div>
     </div>
   );
 }

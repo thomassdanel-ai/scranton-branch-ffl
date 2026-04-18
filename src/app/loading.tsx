@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-// Scranton-flavored loading copy. Rotates every ~1.6s so the page feels alive
-// even during slow fetches. All copy is Dunder-Mifflin-adjacent on purpose.
 const MESSAGES = [
   'Faxing the commissioner…',
   'Counting beets per acre…',
@@ -26,23 +24,58 @@ export default function Loading() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[40vh]">
-      <div className="relative">
-        {/* Outer ring */}
-        <div className="w-16 h-16 rounded-full border-4 border-bg-tertiary" />
-        {/* Spinning ring */}
-        <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-transparent border-t-primary animate-spin" />
-        {/* Football icon */}
-        <div className="absolute inset-0 flex items-center justify-center text-2xl">
-          🏈
-        </div>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '40vh',
+        padding: '48px 16px',
+      }}
+    >
+      <div style={{ position: 'relative', width: 56, height: 56, marginBottom: 20 }}>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            border: '3px solid var(--ink-3)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            border: '3px solid transparent',
+            borderTopColor: 'var(--accent-live)',
+            animation: 'spin 0.9s linear infinite',
+          }}
+        />
       </div>
+      <span
+        style={{
+          font: '500 11px / 1 var(--font-mono)',
+          letterSpacing: 'var(--tr-wider)',
+          textTransform: 'uppercase',
+          color: 'var(--accent-live)',
+          marginBottom: 10,
+        }}
+      >
+        LOADING
+      </span>
       <p
         key={i}
-        className="text-text-muted text-sm mt-4 animate-pulse transition-opacity"
+        style={{
+          color: 'var(--ink-6)',
+          font: '400 var(--fs-13) / 1.4 var(--font-sans)',
+          textAlign: 'center',
+        }}
       >
         {MESSAGES[i]}
       </p>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

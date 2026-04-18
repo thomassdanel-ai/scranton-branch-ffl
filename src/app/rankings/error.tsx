@@ -14,20 +14,21 @@ export default function RankingsError({
   }, [error]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[40vh] text-center px-4">
-      <p className="text-5xl mb-4">📊</p>
-      <h2 className="text-2xl font-extrabold text-white mb-2">
-        Rankings Unavailable
-      </h2>
-      <p className="text-text-secondary mb-6 max-w-md">
-        Power rankings couldn&apos;t be computed right now. This usually resolves after the next data sync.
+    <div className="error-state">
+      <span className="error-state__kicker">LADDER · UNAVAILABLE</span>
+      <h2 className="error-state__title">Numbers aren&apos;t in.</h2>
+      <p className="error-state__desc">
+        Power rankings couldn&apos;t be computed right now. This usually
+        resolves after the next data sync.
+        {error.digest && (
+          <span className="error-state__incident">INCIDENT {error.digest}</span>
+        )}
       </p>
-      <button
-        onClick={reset}
-        className="px-5 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors"
-      >
-        Try Again
-      </button>
+      <div className="error-state__actions">
+        <button type="button" onClick={reset} className="btn btn--primary btn--sm">
+          Try again
+        </button>
+      </div>
     </div>
   );
 }

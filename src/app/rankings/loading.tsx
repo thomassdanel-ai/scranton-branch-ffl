@@ -1,42 +1,58 @@
 export default function RankingsLoading() {
   return (
-    <div className="space-y-6">
-      {/* Title skeleton */}
-      <div>
-        <div className="h-8 w-72 bg-bg-tertiary rounded-lg animate-pulse" />
-        <div className="h-4 w-96 bg-bg-tertiary rounded-sm mt-2 animate-pulse" />
+    <div className="skel-stack" style={{ gap: 24, padding: '24px 0' }}>
+      {/* Headline */}
+      <div className="skel-stack" style={{ gap: 12, maxWidth: 520 }}>
+        <div className="skeleton skel-line" style={{ width: 180 }} />
+        <div className="skeleton skel-line--display" style={{ width: '90%' }} />
+        <div className="skeleton skel-line--display" style={{ width: '70%' }} />
       </div>
 
-      {/* Formula box skeleton */}
-      <div className="glass-card p-4">
-        <div className="h-3 w-24 bg-bg-tertiary rounded-sm animate-pulse mb-2" />
-        <div className="h-3 w-full bg-bg-tertiary rounded-sm animate-pulse" />
-        <div className="h-3 w-3/4 bg-bg-tertiary rounded-sm animate-pulse mt-1" />
-      </div>
-
-      {/* Table skeleton */}
-      <div className="glass-card overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center gap-4 p-4 border-b border-white/5">
-          <div className="h-4 w-8 bg-bg-tertiary rounded-sm animate-pulse" />
-          <div className="h-4 w-32 bg-bg-tertiary rounded-sm animate-pulse" />
-          <div className="h-4 w-16 bg-bg-tertiary rounded-sm animate-pulse ml-auto" />
-          <div className="h-4 w-16 bg-bg-tertiary rounded-sm animate-pulse" />
-          <div className="h-4 w-16 bg-bg-tertiary rounded-sm animate-pulse" />
-        </div>
-        {/* Rows */}
-        {Array.from({ length: 10 }).map((_, i) => (
+      {/* Formula grid */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 10,
+          maxWidth: 520,
+          marginLeft: 'auto',
+          marginTop: -80,
+        }}
+      >
+        {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
-            className="flex items-center gap-4 p-4 border-b border-white/5"
-            style={{ opacity: 1 - i * 0.07 }}
+            className="surface-raised"
+            style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}
           >
-            <div className="h-4 w-6 bg-bg-tertiary rounded-sm animate-pulse" />
-            <div className="h-8 w-8 bg-bg-tertiary rounded-full animate-pulse" />
-            <div className="h-4 w-28 bg-bg-tertiary rounded-sm animate-pulse" />
-            <div className="h-4 w-20 bg-bg-tertiary rounded-sm animate-pulse ml-auto" />
-            <div className="h-4 w-12 bg-bg-tertiary rounded-sm animate-pulse" />
-            <div className="h-2 w-24 bg-bg-tertiary rounded-full animate-pulse" />
+            <div className="skeleton skel-line" style={{ width: 48 }} />
+            <div className="skeleton skel-line--xl" style={{ width: 36 }} />
+            <div className="skeleton skel-line" style={{ height: 2, width: '100%' }} />
+          </div>
+        ))}
+      </div>
+
+      {/* Ladder rows */}
+      <div className="skel-stack" style={{ gap: 10, marginTop: 20 }}>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="surface-raised"
+            style={{
+              padding: '16px 20px',
+              display: 'grid',
+              gridTemplateColumns: '48px 1fr auto',
+              alignItems: 'center',
+              gap: 16,
+              opacity: 1 - i * 0.08,
+            }}
+          >
+            <div className="skeleton skel-line--display" style={{ width: 32 }} />
+            <div className="skel-stack" style={{ gap: 6 }}>
+              <div className="skeleton skel-line--lg" style={{ width: 140 }} />
+              <div className="skeleton skel-line" style={{ width: 200 }} />
+            </div>
+            <div className="skeleton skel-line--xl" style={{ width: 60 }} />
           </div>
         ))}
       </div>

@@ -1,41 +1,70 @@
 export default function LeagueLoading() {
   return (
-    <div className="space-y-6">
-      {/* League header skeleton */}
-      <div className="flex items-center gap-3">
-        <div className="w-3 h-8 bg-bg-tertiary rounded-sm animate-pulse" />
-        <div className="h-7 w-40 bg-bg-tertiary rounded-lg animate-pulse" />
-      </div>
-
-      {/* Tab bar skeleton */}
-      <div className="flex gap-4 border-b border-white/5 pb-2">
-        <div className="h-5 w-24 bg-bg-tertiary rounded-sm animate-pulse" />
-        <div className="h-5 w-24 bg-bg-tertiary rounded-sm animate-pulse" />
-      </div>
-
-      {/* Standings table skeleton */}
-      <div className="glass-card overflow-hidden">
-        <div className="p-4 flex items-center gap-4 border-b border-white/5">
-          <div className="h-4 w-8 bg-bg-tertiary rounded-sm animate-pulse" />
-          <div className="h-4 w-40 bg-bg-tertiary rounded-sm animate-pulse" />
-          <div className="h-4 w-12 bg-bg-tertiary rounded-sm animate-pulse ml-auto" />
-          <div className="h-4 w-16 bg-bg-tertiary rounded-sm animate-pulse" />
-          <div className="h-4 w-16 bg-bg-tertiary rounded-sm animate-pulse" />
+    <div className="skel-stack" style={{ gap: 20, padding: '24px 0' }}>
+      {/* League head */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="skeleton skel-dot" />
+        <div className="skel-stack" style={{ gap: 8 }}>
+          <div className="skeleton skel-line" style={{ width: 80 }} />
+          <div className="skeleton skel-line--display" style={{ width: 200 }} />
         </div>
-        {Array.from({ length: 10 }).map((_, i) => (
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <div className="skeleton" style={{ width: 96, height: 32, borderRadius: 999 }} />
+        <div className="skeleton" style={{ width: 96, height: 32, borderRadius: 999 }} />
+      </div>
+
+      {/* Standings */}
+      <div
+        className="surface-raised"
+        style={{ padding: 0, overflow: 'hidden', position: 'relative' }}
+      >
+        <div
+          className="skeleton"
+          style={{ height: 3, width: '100%', borderRadius: 0 }}
+        />
+        <div style={{ padding: 16 }}>
           <div
-            key={i}
-            className="p-4 flex items-center gap-4 border-b border-white/5"
-            style={{ opacity: 1 - i * 0.07 }}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '32px 1fr 80px 80px 80px 72px 40px',
+              gap: 12,
+              paddingBottom: 12,
+              borderBottom: 'var(--hairline)',
+            }}
           >
-            <div className="h-4 w-6 bg-bg-tertiary rounded-sm animate-pulse" />
-            <div className="h-8 w-8 bg-bg-tertiary rounded-full animate-pulse" />
-            <div className="h-4 w-32 bg-bg-tertiary rounded-sm animate-pulse" />
-            <div className="h-4 w-16 bg-bg-tertiary rounded-sm animate-pulse ml-auto" />
-            <div className="h-4 w-20 bg-bg-tertiary rounded-sm animate-pulse" />
-            <div className="h-4 w-16 bg-bg-tertiary rounded-sm animate-pulse" />
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="skeleton skel-line" />
+            ))}
           </div>
-        ))}
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '32px 1fr 80px 80px 80px 72px 40px',
+                gap: 12,
+                padding: '14px 0',
+                borderBottom: 'var(--hairline)',
+                alignItems: 'center',
+                opacity: 1 - i * 0.07,
+              }}
+            >
+              <div className="skeleton skel-line--lg" style={{ width: 24 }} />
+              <div className="skel-stack" style={{ gap: 6 }}>
+                <div className="skeleton skel-line" style={{ width: 140 }} />
+                <div className="skeleton skel-line" style={{ width: 90 }} />
+              </div>
+              <div className="skeleton skel-line" style={{ width: 48, justifySelf: 'center' }} />
+              <div className="skeleton skel-line" style={{ width: 56, justifySelf: 'end' }} />
+              <div className="skeleton skel-line" style={{ width: 56, justifySelf: 'end' }} />
+              <div className="skeleton skel-line" style={{ width: 24, justifySelf: 'center' }} />
+              <div className="skeleton skel-dot" style={{ justifySelf: 'center' }} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

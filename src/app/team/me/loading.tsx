@@ -1,17 +1,44 @@
 export default function TeamMeLoading() {
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8 animate-pulse">
-      <div className="mb-8">
-        <div className="h-3 w-40 bg-bg-tertiary rounded-sm mb-2" />
-        <div className="h-10 w-64 bg-bg-tertiary rounded-sm" />
+    <div className="skel-stack" style={{ gap: 24, padding: '24px 0' }}>
+      {/* Kicker + headline */}
+      <div className="skel-stack" style={{ gap: 12, maxWidth: 520 }}>
+        <div className="skeleton skel-line" style={{ width: 160 }} />
+        <div className="skeleton skel-line--display" style={{ width: '80%' }} />
+        <div className="skeleton skel-line--display" style={{ width: '55%' }} />
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+
+      {/* Stat grid */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gap: 10,
+        }}
+      >
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-24 bg-bg-secondary/60 border border-bg-tertiary rounded-xl" />
+          <div
+            key={i}
+            className="surface-raised"
+            style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}
+          >
+            <div className="skeleton skel-line" style={{ width: 60 }} />
+            <div className="skeleton skel-line--display" style={{ width: 72 }} />
+            <div className="skeleton skel-line" style={{ width: 90 }} />
+          </div>
         ))}
       </div>
-      <div className="h-56 bg-bg-secondary/60 border border-bg-tertiary rounded-xl mb-8" />
-      <div className="h-72 bg-bg-secondary/60 border border-bg-tertiary rounded-xl" />
-    </main>
+
+      {/* Primary panel */}
+      <div className="surface-raised" style={{ padding: 24, minHeight: 220 }}>
+        <div className="skel-stack" style={{ gap: 12 }}>
+          <div className="skeleton skel-line" style={{ width: 180 }} />
+          <div className="skeleton skel-line" style={{ width: '90%' }} />
+          <div className="skeleton skel-line" style={{ width: '70%' }} />
+          <div className="skeleton skel-line" style={{ width: '80%' }} />
+          <div className="skeleton skel-line" style={{ width: '60%' }} />
+        </div>
+      </div>
+    </div>
   );
 }
