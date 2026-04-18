@@ -62,17 +62,8 @@ export async function PUT(req: NextRequest) {
 
   const supabase = createServiceClient();
 
-  const { email, password, displayName } = await req.json();
-
-  if (!email || !password || !displayName) {
-    return NextResponse.json({ error: 'Email, password, and display name required' }, { status: 400 });
-  }
-
-  if (password.length < 8) {
-    return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
-  }
-
-  // Get org
+  // Check claim state FIRST so the /admin page probe (empty body) can tell
+  // "setup not yet claimed" (400) apart from "setup already claimed" (409).
   const { data: org } = await supabase
     .from('organizations')
     .select('id, setup_claimed_at')
@@ -83,9 +74,18 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Organization not found' }, { status: 500 });
   }
 
-  // Short-circuit if already claimed (fast path, no write).
   if (org.setup_claimed_at) {
     return NextResponse.json({ error: 'Admin account already exists' }, { status: 409 });
+  }
+
+  const { email, password, displayName } = await req.json();
+
+  if (!email || !password || !displayName) {
+    return NextResponse.json({ error: 'Email, password, and display name required' }, { status: 400 });
+  }
+
+  if (password.length < 8) {
+    return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
   }
 
   // Atomic claim: only one caller wins the race. This is the entire TOCTOU fix.
