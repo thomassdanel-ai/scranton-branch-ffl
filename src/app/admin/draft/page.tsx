@@ -57,6 +57,14 @@ type MemberSeason = {
   draft_position: number | null;
 };
 
+function boardStatusChip(status: string): string {
+  if (status === 'drafting') return 'chip chip--live';
+  if (status === 'paused') return 'chip chip--warning';
+  if (status === 'completed') return 'chip chip--info';
+  if (status === 'pending') return 'chip chip--muted';
+  return 'chip';
+}
+
 export default function DraftPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -64,10 +72,7 @@ export default function DraftPage() {
   const [season, setSeason] = useState<Season | null>(null);
   const [leagues, setLeagues] = useState<League[]>([]);
   const [boards, setBoards] = useState<DraftBoard[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [memberSeasons, setMemberSeasons] = useState<MemberSeason[]>([]);
 
-  // Active board view
   const [activeBoard, setActiveBoard] = useState<DraftBoard | null>(null);
   const [picks, setPicks] = useState<DraftPick[]>([]);
   const [boardMembers, setBoardMembers] = useState<Member[]>([]);
@@ -92,8 +97,6 @@ export default function DraftPage() {
     setSeason(data.season);
     setLeagues(data.leagues || []);
     setBoards(data.boards || []);
-    setMembers(data.members || []);
-    setMemberSeasons(data.memberSeasons || []);
     setLoading(false);
   }, []);
 
@@ -114,7 +117,6 @@ export default function DraftPage() {
     fetchOverview();
   }, [fetchOverview]);
 
-  // Auto-refresh board every 10s when viewing a board linked to Sleeper
   useEffect(() => {
     if (!activeBoard?.sleeper_draft_id) return;
     const interval = setInterval(() => fetchBoard(activeBoard.id), 10000);
@@ -192,31 +194,26 @@ export default function DraftPage() {
     return `${Math.floor(seconds / 3600)}h ago`;
   }
 
-  const posColor: Record<string, string> = {
-    QB: 'text-red-400',
-    RB: 'text-green-400',
-    WR: 'text-blue-400',
-    TE: 'text-yellow-400',
-    K: 'text-purple-400',
-    DEF: 'text-orange-400',
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading draft boards...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <p style={{ color: 'var(--ink-5)', font: '500 var(--fs-13) / 1 var(--font-mono)' }}>Loading draft boards&hellip;</p>
       </div>
     );
   }
 
   if (!season) {
     return (
-      <div className="space-y-4">
-        <Link href="/admin" className="text-primary text-sm hover:underline">&larr; Back</Link>
-        <div className="glass-card p-8 text-center">
-          <h2 className="text-xl font-bold text-white mb-2">No Active Draft</h2>
-          <p className="text-text-muted">Complete the Season Setup Wizard through Step 4 (Draft Order Lock) to generate draft boards.</p>
-          <Link href="/admin/season-setup" className="inline-block mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors">
+      <div className="col col--lg">
+        <div className="page-head">
+          <Link href="/admin" className="back-link">&larr; Back to Admin</Link>
+        </div>
+        <div className="empty-state">
+          <h2 className="empty-state__title">No Active Draft</h2>
+          <p className="empty-state__body">
+            Complete the Season Setup Wizard through Step 5 (Draft Order Lock) to generate draft boards.
+          </p>
+          <Link href="/admin/season-setup" className="btn btn--primary btn--lg" style={{ marginTop: 8 }}>
             Go to Season Setup
           </Link>
         </div>
@@ -224,7 +221,6 @@ export default function DraftPage() {
     );
   }
 
-  // Board detail view
   if (activeBoard) {
     const currentPickObj = picks.find(
       (p) => p.round === activeBoard.current_round && p.pick_in_round === activeBoard.current_pick
@@ -241,107 +237,110 @@ export default function DraftPage() {
     const sortedMS = [...boardMemberSeasons].sort((a, b) => (a.draft_position || 0) - (b.draft_position || 0));
 
     return (
-      <div className="space-y-4">
-        <button onClick={() => { setActiveBoard(null); fetchOverview(); }} className="text-primary text-sm hover:underline">
-          &larr; Back to All Boards
-        </button>
+      <div className="col col--lg">
+        <div className="page-head">
+          <button
+            onClick={() => { setActiveBoard(null); fetchOverview(); }}
+            className="back-link"
+            style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+          >
+            &larr; Back to All Boards
+          </button>
+        </div>
 
-        {error && <div className="bg-red-500/20 border border-red-500/50 rounded-lg px-4 py-2 text-red-300 text-sm">{error}</div>}
-        {success && <div className="bg-green-500/20 border border-green-500/50 rounded-lg px-4 py-2 text-green-300 text-sm">{success}</div>}
+        {error && <div className="flash flash--error">{error}</div>}
+        {success && <div className="flash flash--success">{success}</div>}
 
         {/* Header */}
-        <div className="glass-card p-4 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-extrabold text-white">
-              {getLeagueName(activeBoard.league_id)} Draft
-              {activeBoard.is_mock && <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded-full">MOCK</span>}
-              {isSleeperLinked && <span className="ml-2 text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">SLEEPER SYNC</span>}
-            </h1>
-            <p className="text-text-muted text-sm">
-              Season {season.season_number} &middot; {madeCount}/{totalPicks} picks
-              {isComplete && <span className="ml-2 text-accent-green font-semibold">Complete</span>}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {isSleeperLinked && (
-              <>
-                <span className="text-text-muted text-xs">
-                  Synced: {timeAgo(activeBoard.last_synced_at)}
-                </span>
-                <button
-                  onClick={() => triggerSync(activeBoard.id)}
-                  disabled={syncing}
-                  className="px-3 py-2 bg-blue-500/20 text-blue-300 rounded-lg text-sm font-semibold hover:bg-blue-500/30 transition-colors disabled:opacity-50"
-                >
-                  {syncing ? 'Syncing...' : 'Sync Now'}
+        <div className="wiz-panel">
+          <div className="wiz-panel__head">
+            <div>
+              <h1 className="page-head__title" style={{ marginBottom: 4 }}>
+                {getLeagueName(activeBoard.league_id)} Draft
+              </h1>
+              <div className="row">
+                {activeBoard.is_mock && <span className="chip chip--warning">Mock</span>}
+                {isSleeperLinked && <span className="chip chip--info">Sleeper Sync</span>}
+                <span className={boardStatusChip(activeBoard.status)}>{activeBoard.status}</span>
+              </div>
+              <p className="wiz-panel__sub" style={{ marginTop: 8 }}>
+                Season {season.season_number} &middot; {madeCount}/{totalPicks} picks
+                {isComplete && <span style={{ color: 'var(--accent-live)', marginLeft: 8, fontWeight: 600 }}>Complete</span>}
+              </p>
+            </div>
+            <div className="row" style={{ gap: 8 }}>
+              {isSleeperLinked && (
+                <>
+                  <span style={{ color: 'var(--ink-5)', font: '500 var(--fs-11) / 1 var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tr-wide)' }}>
+                    Synced: {timeAgo(activeBoard.last_synced_at)}
+                  </span>
+                  <button onClick={() => triggerSync(activeBoard.id)} disabled={syncing} className="btn btn--sm">
+                    {syncing ? 'Syncing\u2026' : 'Sync Now'}
+                  </button>
+                </>
+              )}
+              {!isSleeperLinked && isPending && (
+                <button onClick={() => boardAction(activeBoard.id, 'start')} disabled={submitting} className="btn btn--primary btn--sm">
+                  Start Draft
                 </button>
-              </>
-            )}
-            {!isSleeperLinked && isPending && (
-              <button onClick={() => boardAction(activeBoard.id, 'start')} disabled={submitting}
-                className="px-4 py-2 bg-accent-green text-white rounded-lg text-sm font-semibold hover:bg-green-600 transition-colors disabled:opacity-50">
-                Start Draft
-              </button>
-            )}
-            {!isSleeperLinked && isDrafting && (
-              <button onClick={() => boardAction(activeBoard.id, 'pause')} disabled={submitting}
-                className="px-3 py-2 bg-yellow-500/20 text-yellow-300 rounded-lg text-sm font-semibold hover:bg-yellow-500/30 transition-colors disabled:opacity-50">
-                Pause
-              </button>
-            )}
-            {!isSleeperLinked && isPaused && (
-              <button onClick={() => boardAction(activeBoard.id, 'resume')} disabled={submitting}
-                className="px-3 py-2 bg-accent-green/20 text-accent-green rounded-lg text-sm font-semibold hover:bg-accent-green/30 transition-colors disabled:opacity-50">
-                Resume
-              </button>
-            )}
-            {(isDrafting || isPaused) && (
-              <button onClick={() => boardAction(activeBoard.id, 'complete')} disabled={submitting}
-                className="px-3 py-2 bg-red-500/20 text-red-300 rounded-lg text-sm font-semibold hover:bg-red-500/30 transition-colors disabled:opacity-50">
-                End Draft
-              </button>
-            )}
-            {activeBoard.is_mock && (isPending || isComplete) && (
-              <button onClick={async () => { await boardAction(activeBoard.id, 'reset-mock'); await fetchBoard(activeBoard.id); }} disabled={submitting}
-                className="px-3 py-2 bg-purple-500/20 text-purple-300 rounded-lg text-sm font-semibold hover:bg-purple-500/30 transition-colors disabled:opacity-50">
-                Reset Mock
-              </button>
-            )}
+              )}
+              {!isSleeperLinked && isDrafting && (
+                <button onClick={() => boardAction(activeBoard.id, 'pause')} disabled={submitting} className="btn btn--sm">
+                  Pause
+                </button>
+              )}
+              {!isSleeperLinked && isPaused && (
+                <button onClick={() => boardAction(activeBoard.id, 'resume')} disabled={submitting} className="btn btn--sm">
+                  Resume
+                </button>
+              )}
+              {(isDrafting || isPaused) && (
+                <button onClick={() => boardAction(activeBoard.id, 'complete')} disabled={submitting} className="btn btn--danger btn--sm">
+                  End Draft
+                </button>
+              )}
+              {activeBoard.is_mock && (isPending || isComplete) && (
+                <button
+                  onClick={async () => { await boardAction(activeBoard.id, 'reset-mock'); await fetchBoard(activeBoard.id); }}
+                  disabled={submitting}
+                  className="btn btn--sm"
+                >
+                  Reset Mock
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Current pick info (when drafting and not yet complete) */}
+        {/* On the clock */}
         {(isDrafting || isPaused) && currentPickObj && (
-          <div className="glass-card p-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-text-muted text-xs uppercase tracking-wider">On the Clock</p>
-                <p className="text-2xl font-extrabold text-white">{currentDrafter}</p>
-                <p className="text-text-muted text-sm">
-                  Round {activeBoard.current_round}, Pick {activeBoard.current_pick} &middot; Overall #{currentPickObj.overall_pick}
-                </p>
+          <div className="on-clock">
+            <div>
+              <div className="on-clock__lab">On the Clock</div>
+              <div className="on-clock__name">{currentDrafter}</div>
+              <div className="on-clock__sub">
+                Round {activeBoard.current_round}, Pick {activeBoard.current_pick} &middot; Overall #{currentPickObj.overall_pick}
               </div>
-              {isSleeperLinked && (
-                <div className="text-right">
-                  <p className="text-text-muted text-xs">Picks sync automatically from Sleeper</p>
-                  <p className="text-text-muted text-xs">every 2 minutes via cron</p>
-                </div>
-              )}
             </div>
+            {isSleeperLinked && (
+              <div className="on-clock__note">
+                Picks sync automatically from Sleeper<br />
+                every 2 minutes via cron
+              </div>
+            )}
           </div>
         )}
 
         {/* Draft Grid */}
-        <div className="glass-card p-4 overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="draft-board">
+          <table>
             <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left text-text-muted py-2 px-2 w-16">Rd</th>
+              <tr>
+                <th style={{ width: 32, textAlign: 'center' }}>Rd</th>
                 {sortedMS.map((ms) => (
-                  <th key={ms.id} className="text-center text-text-muted py-2 px-1 min-w-[110px]">
-                    <span className="text-white font-semibold">{getMemberName(ms.id)}</span>
-                    <br />
-                    <span className="text-xs">#{ms.draft_position}</span>
+                  <th key={ms.id} className="draft-board__member">
+                    <span className="draft-board__member-name">{getMemberName(ms.id)}</span>
+                    <span className="draft-board__member-seed">#{ms.draft_position}</span>
                   </th>
                 ))}
               </tr>
@@ -351,22 +350,30 @@ export default function DraftPage() {
                 const isEven = round % 2 === 0;
                 const colOrder = isEven ? [...sortedMS].reverse() : sortedMS;
                 return (
-                  <tr key={round} className="border-b border-white/5">
-                    <td className="text-text-muted py-2 px-2 font-mono text-xs">{round}</td>
+                  <tr key={round}>
+                    <td className="draft-board__round-lab">{round}</td>
                     {sortedMS.map((ms) => {
                       const colIdx = colOrder.findIndex((c) => c.id === ms.id);
                       const pick = picks.find((p) => p.round === round && p.pick_in_round === colIdx + 1);
                       const isCurrent = pick && activeBoard.current_round === round && activeBoard.current_pick === colIdx + 1 && (isDrafting || isPaused);
 
                       return (
-                        <td key={ms.id} className={`text-center py-1.5 px-1 ${isCurrent ? 'bg-primary/20 ring-1 ring-primary rounded-sm' : ''}`}>
+                        <td
+                          key={ms.id}
+                          className={`draft-board__cell ${isCurrent ? 'draft-board__cell--on' : ''}`}
+                        >
                           {pick?.player_name ? (
-                            <div>
-                              <p className="text-white text-xs font-semibold truncate">{pick.player_name}</p>
-                              <p className={`text-xs ${posColor[pick.position || ''] || 'text-text-muted'}`}>{pick.position}</p>
-                            </div>
+                            <>
+                              <span className="draft-board__pick-name">{pick.player_name}</span>
+                              <span
+                                className="draft-board__pick-pos pos-text"
+                                data-pos={pick.position || ''}
+                              >
+                                {pick.position}
+                              </span>
+                            </>
                           ) : (
-                            <span className="text-text-muted/30 text-xs">#{pick?.overall_pick}</span>
+                            <span className="draft-board__pick-pending">#{pick?.overall_pick}</span>
                           )}
                         </td>
                       );
@@ -379,22 +386,24 @@ export default function DraftPage() {
         </div>
 
         {/* Recent Picks */}
-        <div className="glass-card p-4">
-          <h3 className="text-white font-bold mb-2">Recent Picks</h3>
-          <div className="space-y-1 max-h-48 overflow-y-auto">
+        <div className="wiz-panel">
+          <div className="wiz-panel__head">
+            <h3 className="wiz-panel__title">Recent Picks</h3>
+          </div>
+          <div className="pick-ticker">
             {picks.filter((p) => p.player_name).reverse().slice(0, 20).map((pick) => (
-              <div key={pick.id} className="flex items-center gap-2 text-sm">
-                <span className="text-text-muted font-mono text-xs w-8">#{pick.overall_pick}</span>
-                <span className="text-white">{getMemberName(pick.member_season_id)}</span>
-                <span className="text-text-muted">&rarr;</span>
-                <span className={`font-semibold ${posColor[pick.position || ''] || 'text-white'}`}>
+              <div key={pick.id} className="pick-ticker__row">
+                <span className="pick-ticker__num">#{pick.overall_pick}</span>
+                <span className="pick-ticker__picker">{getMemberName(pick.member_season_id)}</span>
+                <span className="pick-ticker__arrow">&rarr;</span>
+                <span className="pick-ticker__player pos-text" data-pos={pick.position || ''}>
                   {pick.player_name}
                 </span>
-                <span className="text-text-muted text-xs">({pick.position})</span>
+                <span className="pick-ticker__pos">({pick.position})</span>
               </div>
             ))}
             {picks.filter((p) => p.player_name).length === 0 && (
-              <p className="text-text-muted text-sm">No picks yet</p>
+              <p className="form-hint">No picks yet</p>
             )}
           </div>
         </div>
@@ -402,89 +411,60 @@ export default function DraftPage() {
     );
   }
 
-  // Overview: all boards for the drafting season
+  // Overview
   return (
-    <div className="space-y-6">
-      <Link href="/admin" className="text-primary text-sm hover:underline">&larr; Back</Link>
-
-      {error && <div className="bg-red-500/20 border border-red-500/50 rounded-lg px-4 py-2 text-red-300 text-sm">{error}</div>}
-      {success && <div className="bg-green-500/20 border border-green-500/50 rounded-lg px-4 py-2 text-green-300 text-sm">{success}</div>}
-
-      <div>
-        <h1 className="text-2xl font-extrabold text-white">Draft Board</h1>
-        <p className="text-text-muted text-sm">Season {season.season_number} ({season.year})</p>
+    <div className="col col--lg">
+      <div className="page-head">
+        <Link href="/admin" className="back-link">&larr; Back to Admin</Link>
+        <h1 className="page-head__title">Draft Board</h1>
+        <p className="wiz-panel__sub" style={{ marginTop: 4 }}>Season {season.season_number} ({season.year})</p>
       </div>
 
-      {/* League Draft Boards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {error && <div className="flash flash--error">{error}</div>}
+      {success && <div className="flash flash--success">{success}</div>}
+
+      <div className="form-grid form-grid--2">
         {leagues.map((league) => {
           const realBoard = boards.find((b) => b.league_id === league.id && !b.is_mock);
           const mockBoard = boards.find((b) => b.league_id === league.id && b.is_mock);
 
-          const statusColors: Record<string, string> = {
-            pending: 'bg-yellow-500/20 text-yellow-300',
-            drafting: 'bg-green-500/20 text-green-300',
-            paused: 'bg-orange-500/20 text-orange-300',
-            completed: 'bg-blue-500/20 text-blue-300',
-          };
-
           return (
-            <div key={league.id} className="glass-card p-5 space-y-3">
-              <h2 className="font-bold text-white text-lg">{league.name}</h2>
+            <div key={league.id} className="league-slot">
+              <h2 className="league-slot__name">{league.name}</h2>
 
-              {/* Real Draft */}
               {realBoard ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[realBoard.status] || 'bg-white/10 text-white'}`}>
-                      {realBoard.status.toUpperCase()}
-                    </span>
-                    {realBoard.sleeper_draft_id && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">
-                        SLEEPER
-                      </span>
-                    )}
+                <>
+                  <div className="league-slot__meta">
+                    <span className={boardStatusChip(realBoard.status)}>{realBoard.status}</span>
+                    {realBoard.sleeper_draft_id && <span className="chip chip--info">Sleeper</span>}
                     {realBoard.status !== 'pending' && (
-                      <span className="text-text-muted text-xs">
-                        R{realBoard.current_round} P{realBoard.current_pick}
-                      </span>
+                      <span>R{realBoard.current_round} P{realBoard.current_pick}</span>
                     )}
                     {realBoard.last_synced_at && (
-                      <span className="text-text-muted text-xs">
-                        Synced {timeAgo(realBoard.last_synced_at)}
-                      </span>
+                      <span>Synced {timeAgo(realBoard.last_synced_at)}</span>
                     )}
                   </div>
-                  <button
-                    onClick={() => fetchBoard(realBoard.id)}
-                    className="w-full px-4 py-2 bg-primary/20 text-primary rounded-lg text-sm font-semibold hover:bg-primary/30 transition-colors"
-                  >
+                  <button onClick={() => fetchBoard(realBoard.id)} className="btn btn--primary">
                     {realBoard.status === 'pending' ? 'Open Draft Board' : realBoard.status === 'completed' ? 'View Results' : 'View Draft'}
                   </button>
-                </div>
+                </>
               ) : (
-                <p className="text-text-muted text-sm">No draft board generated. Lock draft order in Setup Wizard.</p>
+                <p className="form-hint">No draft board generated. Lock draft order in Setup Wizard.</p>
               )}
 
-              {/* Mock Draft */}
-              <div className="border-t border-white/10 pt-3">
+              <div className="league-slot__mock">
                 {mockBoard ? (
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[mockBoard.status] || 'bg-white/10 text-white'}`}>
-                      MOCK: {mockBoard.status.toUpperCase()}
-                    </span>
-                    <button
-                      onClick={() => fetchBoard(mockBoard.id)}
-                      className="text-xs text-purple-300 hover:underline"
-                    >
+                  <>
+                    <span className={boardStatusChip(mockBoard.status)}>Mock: {mockBoard.status}</span>
+                    <button onClick={() => fetchBoard(mockBoard.id)} className="action-link action-link--live">
                       Open Mock
                     </button>
-                  </div>
+                  </>
                 ) : (
                   <button
                     onClick={() => createMockDraft(league.id, season.id)}
                     disabled={submitting}
-                    className="text-xs text-purple-300 hover:underline disabled:opacity-50"
+                    className="action-link action-link--live"
                   >
                     Create Mock Draft
                   </button>
@@ -495,17 +475,20 @@ export default function DraftPage() {
         })}
       </div>
 
-      {/* Public Draft Link */}
       {boards.length > 0 && (
-        <div className="glass-card p-4">
-          <h3 className="text-white font-bold mb-2">Share Draft Link</h3>
-          <p className="text-text-muted text-sm mb-2">Send this link to league members so they can watch the draft live:</p>
-          {boards.filter((b) => !b.is_mock).map((b) => (
-            <div key={b.id} className="flex items-center gap-2 mb-1">
-              <span className="text-white text-sm">{getLeagueName(b.league_id)}:</span>
-              <code className="text-xs text-primary bg-bg-tertiary px-2 py-1 rounded-sm">/draft/{b.id}</code>
-            </div>
-          ))}
+        <div className="wiz-panel">
+          <div className="wiz-panel__head">
+            <h3 className="wiz-panel__title">Share Draft Link</h3>
+          </div>
+          <p className="form-hint">Send this link to league members so they can watch the draft live:</p>
+          <div className="col col--sm">
+            {boards.filter((b) => !b.is_mock).map((b) => (
+              <div key={b.id} className="share-link-row">
+                <span className="share-link-row__lab">{getLeagueName(b.league_id)}:</span>
+                <code className="code-badge">/draft/{b.id}</code>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

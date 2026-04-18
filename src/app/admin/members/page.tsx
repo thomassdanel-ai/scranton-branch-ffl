@@ -17,19 +17,23 @@ type Member = {
 
 type SortField = 'full_name' | 'status' | 'email' | 'created_at';
 
+function statusChipClass(status: string): string {
+  if (status === 'active') return 'chip chip--success';
+  if (status === 'inactive') return 'chip chip--warning';
+  return 'chip chip--muted';
+}
+
 export default function MembersPage() {
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('full_name');
   const [sortAsc, setSortAsc] = useState(true);
 
-  // Modal state
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [formData, setFormData] = useState({ full_name: '', display_name: '', email: '', notes: '' });
@@ -123,7 +127,6 @@ export default function MembersPage() {
     fetchMembers();
   }
 
-  // Filter and sort
   const filtered = members
     .filter((m) => statusFilter === 'all' || m.status === statusFilter)
     .filter((m) => {
@@ -151,159 +154,116 @@ export default function MembersPage() {
     }
   }
 
-  const statusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      active: 'bg-accent-green/20 text-accent-green',
-      inactive: 'bg-yellow-500/20 text-yellow-400',
-      alumni: 'bg-text-muted/20 text-text-muted',
-    };
-    return (
-      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || ''}`}>
-        {status}
-      </span>
-    );
-  };
+  function sortArrow(field: SortField) {
+    if (sortField !== field) return null;
+    return <span className="sort-ind sort-ind--on">{sortAsc ? '\u2191' : '\u2193'}</span>;
+  }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading members...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <p style={{ color: 'var(--ink-5)', font: '500 var(--fs-13) / 1 var(--font-mono)' }}>Loading members&hellip;</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link href="/admin" className="text-text-muted text-sm hover:text-white transition-colors">
-            &larr; Back to Admin
-          </Link>
-          <h1 className="text-2xl font-extrabold text-white mt-1">Members</h1>
+    <div className="col col--lg">
+      <div className="page-head">
+        <Link href="/admin" className="back-link">&larr; Back to Admin</Link>
+        <div className="row" style={{ justifyContent: 'space-between', width: '100%', alignItems: 'flex-end' }}>
+          <h1 className="page-head__title">Members</h1>
+          <button onClick={openAdd} className="btn btn--primary">+ Add Member</button>
         </div>
-        <button
-          onClick={openAdd}
-          className="px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors"
-        >
-          + Add Member
-        </button>
       </div>
 
-      {error && <p className="text-accent-red">{error}</p>}
+      {error && <div className="flash flash--error">{error}</div>}
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <input
-          type="text"
-          placeholder="Search by name or email..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted text-sm focus:outline-hidden focus:border-primary w-64"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
-        >
-          <option value="all">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="alumni">Alumni</option>
-        </select>
-        <span className="text-text-muted text-sm ml-auto">
+      <div className="filter-bar">
+        <div className="filter-bar__group" style={{ flex: 1, minWidth: 220 }}>
+          <input
+            type="text"
+            placeholder="Search by name or email"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="inp"
+            style={{ width: '100%', maxWidth: 280 }}
+          />
+        </div>
+        <div className="filter-bar__group">
+          <span className="filter-bar__lab">Status</span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="sel"
+          >
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="alumni">Alumni</option>
+          </select>
+        </div>
+        <span style={{ marginLeft: 'auto', color: 'var(--ink-5)', font: '500 var(--fs-11) / 1 var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tr-wide)' }}>
           {filtered.length} member{filtered.length !== 1 ? 's' : ''}
         </span>
       </div>
 
-      {/* Table */}
-      <div className="glass-card overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="data-table-wrap" style={{ overflowX: 'auto' }}>
+        <table className="data-table">
           <thead>
-            <tr className="border-b border-white/10 text-left">
-              <th
-                className="px-4 py-3 text-text-muted font-medium cursor-pointer hover:text-white"
-                onClick={() => toggleSort('full_name')}
-              >
-                Name {sortField === 'full_name' && (sortAsc ? '\u2191' : '\u2193')}
+            <tr>
+              <th className="data-table__th--sortable" onClick={() => toggleSort('full_name')}>
+                Name {sortArrow('full_name')}
               </th>
-              <th className="px-4 py-3 text-text-muted font-medium">Display Name</th>
-              <th
-                className="px-4 py-3 text-text-muted font-medium cursor-pointer hover:text-white"
-                onClick={() => toggleSort('email')}
-              >
-                Email {sortField === 'email' && (sortAsc ? '\u2191' : '\u2193')}
+              <th>Display Name</th>
+              <th className="data-table__th--sortable" onClick={() => toggleSort('email')}>
+                Email {sortArrow('email')}
               </th>
-              <th
-                className="px-4 py-3 text-text-muted font-medium cursor-pointer hover:text-white"
-                onClick={() => toggleSort('status')}
-              >
-                Status {sortField === 'status' && (sortAsc ? '\u2191' : '\u2193')}
+              <th className="data-table__th--sortable" onClick={() => toggleSort('status')}>
+                Status {sortArrow('status')}
               </th>
-              <th className="px-4 py-3 text-text-muted font-medium">Joined</th>
-              <th className="px-4 py-3 text-text-muted font-medium">Actions</th>
+              <th>Joined</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((m) => (
-              <tr key={m.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                <td className="px-4 py-3">
-                  <Link
-                    href={`/admin/members/${m.id}`}
-                    className="text-white font-medium hover:text-primary transition-colors"
-                  >
+              <tr key={m.id}>
+                <td>
+                  <Link href={`/admin/members/${m.id}`} className="data-table__name">
                     {m.full_name}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-text-secondary">{m.display_name || '—'}</td>
-                <td className="px-4 py-3 text-text-secondary">{m.email || '—'}</td>
-                <td className="px-4 py-3">{statusBadge(m.status)}</td>
-                <td className="px-4 py-3 text-text-secondary">
-                  {m.joined_season ? `S${m.joined_season}` : '—'}
+                <td className="data-table__muted">{m.display_name || '\u2014'}</td>
+                <td className="data-table__muted">{m.email || '\u2014'}</td>
+                <td><span className={statusChipClass(m.status)}>{m.status}</span></td>
+                <td className="data-table__muted">
+                  {m.joined_season ? `S${m.joined_season}` : '\u2014'}
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openEdit(m)}
-                      className="text-primary text-xs hover:underline"
-                    >
-                      Edit
-                    </button>
+                <td>
+                  <div className="data-table__actions">
+                    <button onClick={() => openEdit(m)} className="action-link action-link--live">Edit</button>
                     {m.status === 'active' && (
-                      <button
-                        onClick={() => handleStatusChange(m, 'inactive')}
-                        className="text-yellow-400 text-xs hover:underline"
-                      >
+                      <button onClick={() => handleStatusChange(m, 'inactive')} className="action-link action-link--clock">
                         Deactivate
                       </button>
                     )}
                     {m.status === 'inactive' && (
                       <>
-                        <button
-                          onClick={() => handleStatusChange(m, 'active')}
-                          className="text-accent-green text-xs hover:underline"
-                        >
+                        <button onClick={() => handleStatusChange(m, 'active')} className="action-link action-link--live">
                           Reactivate
                         </button>
-                        <button
-                          onClick={() => handleStatusChange(m, 'alumni')}
-                          className="text-text-muted text-xs hover:underline"
-                        >
+                        <button onClick={() => handleStatusChange(m, 'alumni')} className="action-link action-link--muted">
                           Archive
                         </button>
                       </>
                     )}
                     {m.status === 'alumni' && (
-                      <button
-                        onClick={() => handleStatusChange(m, 'active')}
-                        className="text-accent-green text-xs hover:underline"
-                      >
+                      <button onClick={() => handleStatusChange(m, 'active')} className="action-link action-link--live">
                         Reactivate
                       </button>
                     )}
-                    <button
-                      onClick={() => handleDelete(m)}
-                      className="text-accent-red text-xs hover:underline"
-                    >
+                    <button onClick={() => handleDelete(m)} className="action-link action-link--danger">
                       Delete
                     </button>
                   </div>
@@ -312,7 +272,7 @@ export default function MembersPage() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-text-muted">
+                <td colSpan={6} className="data-table__empty">
                   {members.length === 0
                     ? 'No members yet. Click "+ Add Member" to get started.'
                     : 'No members match your filters.'}
@@ -323,78 +283,68 @@ export default function MembersPage() {
         </table>
       </div>
 
-      {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <form
-            onSubmit={handleSave}
-            className="glass-card p-6 w-full max-w-md space-y-4 mx-4"
-          >
-            <h2 className="text-lg font-bold text-white">
-              {editingMember ? 'Edit Member' : 'Add Member'}
-            </h2>
+        <div className="modal">
+          <div className="modal__backdrop" onClick={() => setShowModal(false)} />
+          <form onSubmit={handleSave} className="modal__dialog">
+            <h2 className="modal__title">{editingMember ? 'Edit Member' : 'Add Member'}</h2>
 
             <div>
-              <label className="block text-sm text-text-secondary mb-1">Full Name *</label>
+              <label className="form-label">Full Name *</label>
               <input
                 type="text"
                 value={formData.full_name}
                 onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
+                className="inp"
                 required
                 autoFocus
               />
             </div>
 
             <div>
-              <label className="block text-sm text-text-secondary mb-1">
-                Display Name <span className="text-text-muted">(for recaps & UI)</span>
+              <label className="form-label">
+                Display Name
+                <span style={{ color: 'var(--ink-5)', marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>
+                  (for recaps &amp; UI)
+                </span>
               </label>
               <input
                 type="text"
                 value={formData.display_name}
                 onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
                 placeholder={formData.full_name.split(' ')[0] || 'First name used if blank'}
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white placeholder-text-muted text-sm focus:outline-hidden focus:border-primary"
+                className="inp"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-text-secondary mb-1">Email</label>
+              <label className="form-label">Email</label>
               <input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
+                className="inp"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-text-secondary mb-1">Notes</label>
+              <label className="form-label">Notes</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={2}
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary resize-none"
+                className="txta"
               />
             </div>
 
-            {formError && <p className="text-accent-red text-sm">{formError}</p>}
+            {formError && <p className="form-hint" style={{ color: 'var(--accent-danger)' }}>{formError}</p>}
 
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-text-secondary hover:text-white transition-colors text-sm"
-              >
+            <div className="modal__actions">
+              <button type="button" onClick={() => setShowModal(false)} className="btn btn--ghost">
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors text-sm disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : editingMember ? 'Save Changes' : 'Add Member'}
+              <button type="submit" disabled={saving} className="btn btn--primary">
+                {saving ? 'Saving\u2026' : editingMember ? 'Save Changes' : 'Add Member'}
               </button>
             </div>
           </form>

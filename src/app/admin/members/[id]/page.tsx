@@ -26,6 +26,18 @@ type SeasonEntry = {
   seasons: { year: number; season_number: number } | null;
 };
 
+function statusChipClass(status: string): string {
+  if (status === 'active') return 'chip chip--success';
+  if (status === 'inactive') return 'chip chip--warning';
+  return 'chip chip--muted';
+}
+
+function onboardChipClass(status: string): string {
+  if (status === 'confirmed') return 'chip chip--success';
+  if (status === 'declined') return 'chip chip--danger';
+  return 'chip chip--warning';
+}
+
 export default function MemberDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -73,135 +85,120 @@ export default function MemberDetailPage() {
 
   if (loading || !member) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading member...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <p style={{ color: 'var(--ink-5)', font: '500 var(--fs-13) / 1 var(--font-mono)' }}>Loading member&hellip;</p>
       </div>
     );
   }
 
-  const statusColors: Record<string, string> = {
-    active: 'bg-accent-green/20 text-accent-green',
-    inactive: 'bg-yellow-500/20 text-yellow-400',
-    alumni: 'bg-text-muted/20 text-text-muted',
-  };
-
   return (
-    <div className="space-y-6 max-w-3xl">
-      <Link href="/admin/members" className="text-text-muted text-sm hover:text-white transition-colors">
-        &larr; Back to Members
-      </Link>
+    <div className="col col--lg" style={{ maxWidth: 860 }}>
+      <div className="page-head">
+        <Link href="/admin/members" className="back-link">&larr; Back to Members</Link>
+      </div>
 
-      {/* Header */}
-      <div className="glass-card p-6">
-        <div className="flex items-start justify-between">
+      {/* Header panel */}
+      <div className="wiz-panel">
+        <div className="wiz-panel__head" style={{ alignItems: 'flex-start' }}>
           <div>
-            <h1 className="text-2xl font-extrabold text-white">{member.full_name}</h1>
+            <h1 className="page-head__title" style={{ marginBottom: 2 }}>{member.full_name}</h1>
             {member.display_name && (
-              <p className="text-text-secondary mt-1">
+              <p className="wiz-panel__sub">
                 aka &ldquo;{member.display_name}&rdquo;
               </p>
             )}
           </div>
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusColors[member.status]}`}>
-            {member.status}
-          </span>
+          <span className={statusChipClass(member.status)}>{member.status}</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-6 text-sm">
-          <div>
-            <p className="text-text-muted">Email</p>
-            <p className="text-white">{member.email || '—'}</p>
+        <div className="kv-grid">
+          <div className="kv">
+            <div className="kv__lab">Email</div>
+            <div className="kv__val">{member.email || '\u2014'}</div>
           </div>
-          <div>
-            <p className="text-text-muted">Joined</p>
-            <p className="text-white">{member.joined_season ? `Season ${member.joined_season}` : '—'}</p>
+          <div className="kv">
+            <div className="kv__lab">Joined</div>
+            <div className="kv__val">{member.joined_season ? `Season ${member.joined_season}` : '\u2014'}</div>
           </div>
-          <div>
-            <p className="text-text-muted">Seasons Played</p>
-            <p className="text-white">{seasons.length}</p>
+          <div className="kv">
+            <div className="kv__lab">Seasons Played</div>
+            <div className="kv__val">{seasons.length}</div>
           </div>
-          <div>
-            <p className="text-text-muted">Member Since</p>
-            <p className="text-white">{new Date(member.created_at).toLocaleDateString()}</p>
+          <div className="kv">
+            <div className="kv__lab">Member Since</div>
+            <div className="kv__val">{new Date(member.created_at).toLocaleDateString()}</div>
           </div>
         </div>
       </div>
 
       {/* Notes */}
-      <div className="glass-card p-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-white">Commissioner Notes</h2>
+      <div className="wiz-panel">
+        <div className="wiz-panel__head">
+          <h2 className="wiz-panel__title">Commissioner Notes</h2>
           {!editingNotes && (
-            <button
-              onClick={() => setEditingNotes(true)}
-              className="text-primary text-sm hover:underline"
-            >
+            <button onClick={() => setEditingNotes(true)} className="action-link action-link--live">
               Edit
             </button>
           )}
         </div>
         {editingNotes ? (
-          <div className="space-y-3">
+          <div className="col col--sm">
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
-              className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary resize-none"
+              className="txta"
               autoFocus
             />
-            <div className="flex gap-2 justify-end">
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button
                 onClick={() => { setEditingNotes(false); setNotes(member.notes || ''); }}
-                className="text-text-secondary text-sm hover:text-white"
+                className="btn btn--ghost btn--sm"
               >
                 Cancel
               </button>
               <button
                 onClick={saveNotes}
                 disabled={savingNotes}
-                className="px-3 py-1 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark disabled:opacity-50"
+                className="btn btn--primary btn--sm"
               >
-                {savingNotes ? 'Saving...' : 'Save'}
+                {savingNotes ? 'Saving\u2026' : 'Save'}
               </button>
             </div>
           </div>
         ) : (
-          <p className="text-text-secondary text-sm whitespace-pre-wrap">
+          <p className={`notes-box ${!member.notes ? 'notes-box--empty' : ''}`}>
             {member.notes || 'No notes yet.'}
           </p>
         )}
       </div>
 
       {/* Season History */}
-      <div className="glass-card p-6">
-        <h2 className="text-lg font-bold text-white mb-4">Season History</h2>
+      <div className="wiz-panel">
+        <div className="wiz-panel__head">
+          <h2 className="wiz-panel__title">Season History</h2>
+        </div>
         {seasons.length === 0 ? (
-          <p className="text-text-muted text-sm">No season history yet.</p>
+          <p className="form-hint">No season history yet.</p>
         ) : (
-          <div className="space-y-3">
+          <div className="col col--sm">
             {seasons.map((s) => (
-              <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary/50">
-                <div>
-                  <p className="text-white font-medium">
+              <div key={s.id} className="hist-entry">
+                <div className="hist-entry__body">
+                  <div className="hist-entry__primary">
                     Season {s.seasons?.season_number || '?'}{' '}
-                    <span className="text-text-muted">({s.seasons?.year})</span>
-                  </p>
-                  <p className="text-text-secondary text-sm">
+                    <span className="hist-entry__year">({s.seasons?.year})</span>
+                  </div>
+                  <div className="hist-entry__secondary">
                     {s.leagues?.name || 'Unknown League'}
-                    {s.sleeper_display_name && ` — "${s.sleeper_display_name}"`}
-                  </p>
+                    {s.sleeper_display_name && ` \u2014 "${s.sleeper_display_name}"`}
+                  </div>
                 </div>
-                <div className="text-right text-sm">
+                <div className="hist-entry__meta">
                   {s.draft_position && (
-                    <p className="text-text-muted">Draft #{s.draft_position}</p>
+                    <span className="hist-entry__draft">Draft #{s.draft_position}</span>
                   )}
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${
-                    s.onboard_status === 'confirmed'
-                      ? 'bg-accent-green/20 text-accent-green'
-                      : s.onboard_status === 'declined'
-                        ? 'bg-accent-red/20 text-accent-red'
-                        : 'bg-yellow-500/20 text-yellow-400'
-                  }`}>
+                  <span className={onboardChipClass(s.onboard_status)}>
                     {s.onboard_status}
                   </span>
                 </div>

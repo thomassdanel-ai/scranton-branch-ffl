@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import ConfirmModal from '@/components/admin/ConfirmModal';
 
 type PreviewData = {
@@ -14,11 +15,21 @@ type PreviewData = {
   bracketStatus: 'complete' | 'in_progress' | 'not_set_up';
 };
 
-const BRACKET_STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
-  complete: { label: 'Complete', color: 'bg-green-500/20 text-green-300' },
-  in_progress: { label: 'In Progress', color: 'bg-yellow-500/20 text-yellow-300' },
-  not_set_up: { label: 'Not Set Up', color: 'bg-red-500/20 text-red-300' },
-};
+function cssVars(vars: Record<string, string>): React.CSSProperties {
+  return vars as React.CSSProperties;
+}
+
+function bracketChipClass(status: string): string {
+  if (status === 'complete') return 'chip chip--success';
+  if (status === 'in_progress') return 'chip chip--warning';
+  return 'chip chip--danger';
+}
+
+function bracketChipLabel(status: string): string {
+  if (status === 'complete') return 'Complete';
+  if (status === 'in_progress') return 'In Progress';
+  return 'Not Set Up';
+}
 
 export default function ArchiveSeasonPage() {
   const router = useRouter();
@@ -72,117 +83,113 @@ export default function ArchiveSeasonPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <p style={{ color: 'var(--ink-5)', font: '500 var(--fs-13) / 1 var(--font-mono)' }}>Loading&hellip;</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-extrabold text-white">Archive Season</h1>
-        <p className="text-text-secondary text-sm mt-1">
+    <div className="col col--lg" style={{ maxWidth: 780 }}>
+      <div className="page-head">
+        <Link href="/admin" className="back-link">&larr; Back to Admin</Link>
+        <h1 className="page-head__title">Archive Season</h1>
+        <p className="wiz-panel__sub" style={{ marginTop: 4 }}>
           Snapshot the {seasonYear} season data for the permanent historical record.
         </p>
       </div>
 
-      <div className="glass-card p-6 space-y-4">
-        <h2 className="font-bold text-white">What gets archived:</h2>
-        <ul className="space-y-2 text-sm text-text-secondary">
-          <li className="flex items-center gap-2">
-            <span className="text-accent-green">*</span>
-            Final standings for all leagues
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="text-accent-green">*</span>
-            Power rankings snapshot
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="text-accent-green">*</span>
-            Championship bracket results
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="text-accent-green">*</span>
-            Season awards (most points, best record, champion)
-          </li>
+      <div className="wiz-panel">
+        <div className="wiz-panel__head">
+          <h2 className="wiz-panel__title">What Gets Archived</h2>
+        </div>
+        <ul className="bullet-list">
+          <li>Final standings for all leagues</li>
+          <li>Power rankings snapshot</li>
+          <li>Championship bracket results</li>
+          <li>Season awards (most points, best record, champion)</li>
         </ul>
       </div>
 
-      {/* Archive Preview */}
       {previewLoading ? (
-        <div className="glass-card p-6">
-          <p className="text-text-muted text-sm">Loading preview...</p>
+        <div className="wiz-panel">
+          <p className="form-hint">Loading preview&hellip;</p>
         </div>
       ) : preview ? (
-        <div className="space-y-4">
-          {/* League Standings Preview */}
+        <>
           {preview.leagueStandings.length > 0 && (
-            <div className="glass-card p-6 space-y-4">
-              <h2 className="font-bold text-white">Standings Preview</h2>
-              {preview.leagueStandings.map((ls) => (
-                <div key={ls.leagueName}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ls.leagueColor }} />
-                    <span className="text-white font-semibold text-sm">{ls.leagueName}</span>
-                  </div>
-                  {ls.teams.length > 0 ? (
-                    <div className="space-y-1 ml-4">
-                      {ls.teams.map((team, i) => (
-                        <div key={i} className="flex items-center gap-3 text-sm">
-                          <span className="text-text-muted font-mono w-4">{i + 1}.</span>
-                          <span className="text-white">{team.name}</span>
-                          <span className="text-text-muted font-mono ml-auto">{team.wins}-{team.losses}</span>
-                          <span className="text-text-muted font-mono">{team.pointsFor.toFixed(1)} PF</span>
-                        </div>
-                      ))}
+            <div className="wiz-panel">
+              <div className="wiz-panel__head">
+                <h2 className="wiz-panel__title">Standings Preview</h2>
+              </div>
+              <div className="col col--sm">
+                {preview.leagueStandings.map((ls) => (
+                  <div key={ls.leagueName} className="subcard" style={cssVars({ '--dot-color': ls.leagueColor })}>
+                    <div className="subcard__head">
+                      <div className="subcard__title">
+                        <span className="subcard__dot" />
+                        <span>{ls.leagueName}</span>
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-text-muted text-xs ml-4">No standings data available</p>
-                  )}
-                </div>
-              ))}
+                    {ls.teams.length > 0 ? (
+                      <div>
+                        {ls.teams.map((team, i) => (
+                          <div key={i} className="stand-preview__row">
+                            <span className="stand-preview__rk">{i + 1}.</span>
+                            <span className="stand-preview__name">{team.name}</span>
+                            <span className="stand-preview__rec">{team.wins}-{team.losses}</span>
+                            <span className="stand-preview__pf">{team.pointsFor.toFixed(1)} PF</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="form-hint">No standings data available</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Awards Preview */}
           {Object.keys(preview.awards).length > 0 && (
-            <div className="glass-card p-6 space-y-3">
-              <h2 className="font-bold text-white">Awards</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="wiz-panel">
+              <div className="wiz-panel__head">
+                <h2 className="wiz-panel__title">Awards</h2>
+              </div>
+              <div className="awards-grid">
                 {preview.awards.champion && (
-                  <div className="p-3 rounded-lg bg-accent-gold/10 border border-accent-gold/20">
-                    <p className="text-accent-gold text-xs font-semibold">Champion</p>
-                    <p className="text-white text-sm">{preview.awards.champion.name}</p>
+                  <div className="award-cell award-cell--gold">
+                    <div className="award-cell__lab">Champion</div>
+                    <div className="award-cell__name">{preview.awards.champion.name}</div>
                     {preview.awards.champion.league && (
-                      <p className="text-text-muted text-xs">{preview.awards.champion.league}</p>
+                      <div className="award-cell__detail">{preview.awards.champion.league}</div>
                     )}
                   </div>
                 )}
                 {preview.awards.mostPoints && (
-                  <div className="p-3 rounded-lg bg-bg-tertiary/50">
-                    <p className="text-text-muted text-xs font-semibold">Most Points</p>
-                    <p className="text-white text-sm">{preview.awards.mostPoints.name}</p>
+                  <div className="award-cell">
+                    <div className="award-cell__lab">Most Points</div>
+                    <div className="award-cell__name">{preview.awards.mostPoints.name}</div>
                     {preview.awards.mostPoints.league && (
-                      <p className="text-text-muted text-xs">{preview.awards.mostPoints.league}</p>
+                      <div className="award-cell__detail">{preview.awards.mostPoints.league}</div>
                     )}
                   </div>
                 )}
                 {preview.awards.bestRecord && (
-                  <div className="p-3 rounded-lg bg-bg-tertiary/50">
-                    <p className="text-text-muted text-xs font-semibold">Best Record</p>
-                    <p className="text-white text-sm">{preview.awards.bestRecord.name}</p>
+                  <div className="award-cell">
+                    <div className="award-cell__lab">Best Record</div>
+                    <div className="award-cell__name">{preview.awards.bestRecord.name}</div>
                     {preview.awards.bestRecord.league && (
-                      <p className="text-text-muted text-xs">{preview.awards.bestRecord.league}</p>
+                      <div className="award-cell__detail">{preview.awards.bestRecord.league}</div>
                     )}
                   </div>
                 )}
                 {preview.awards.topPowerRanked && (
-                  <div className="p-3 rounded-lg bg-bg-tertiary/50">
-                    <p className="text-text-muted text-xs font-semibold">#1 Power Ranked</p>
-                    <p className="text-white text-sm">{preview.awards.topPowerRanked.name}</p>
+                  <div className="award-cell">
+                    <div className="award-cell__lab">#1 Power Ranked</div>
+                    <div className="award-cell__name">{preview.awards.topPowerRanked.name}</div>
                     {preview.awards.topPowerRanked.league && (
-                      <p className="text-text-muted text-xs">{preview.awards.topPowerRanked.league}</p>
+                      <div className="award-cell__detail">{preview.awards.topPowerRanked.league}</div>
                     )}
                   </div>
                 )}
@@ -190,41 +197,43 @@ export default function ArchiveSeasonPage() {
             </div>
           )}
 
-          {/* Bracket Status */}
-          <div className="glass-card p-6 space-y-3">
-            <div className="flex items-center gap-3">
-              <h2 className="font-bold text-white">Bracket Status</h2>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${BRACKET_STATUS_DISPLAY[preview.bracketStatus]?.color || ''}`}>
-                {BRACKET_STATUS_DISPLAY[preview.bracketStatus]?.label || preview.bracketStatus}
+          <div className="wiz-panel">
+            <div className="wiz-panel__head">
+              <h2 className="wiz-panel__title">Bracket Status</h2>
+              <span className={bracketChipClass(preview.bracketStatus)}>
+                {bracketChipLabel(preview.bracketStatus)}
               </span>
             </div>
             {preview.bracketStatus !== 'complete' && (
-              <p className="text-amber-300 text-sm">
+              <div className="info-panel info-panel--warning">
                 The championship bracket is not complete. Archiving now will freeze incomplete bracket data.
-              </p>
+              </div>
             )}
           </div>
-        </div>
+        </>
       ) : null}
 
-      {/* Archive Button */}
-      <div className="glass-card p-6 space-y-4">
+      <div className="row">
         <button
           onClick={() => setShowConfirm(true)}
           disabled={archiving}
-          className="px-6 py-2 bg-accent-red text-white rounded-lg font-semibold hover:bg-red-600 transition-colors disabled:opacity-50"
+          className="btn btn--danger btn--lg"
         >
-          {archiving ? 'Archiving...' : `Archive ${seasonYear} Season`}
+          {archiving ? 'Archiving\u2026' : `Archive ${seasonYear} Season`}
         </button>
-
         {message && (
-          <p className={`text-sm ${message.startsWith('Error') ? 'text-accent-red' : 'text-accent-green'}`}>
+          <span
+            className="form-hint"
+            style={{
+              color: message.startsWith('Error') ? 'var(--accent-danger)' : 'var(--accent-live)',
+              fontSize: 13,
+            }}
+          >
             {message}
-          </p>
+          </span>
         )}
       </div>
 
-      {/* Confirmation Modal */}
       {showConfirm && (
         <ConfirmModal
           title={`Archive Season ${seasonYear}`}

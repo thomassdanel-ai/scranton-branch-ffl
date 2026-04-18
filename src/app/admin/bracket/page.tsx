@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useLeagueConfig } from '@/components/providers/ConfigProvider';
 import { ORG_SHORT_NAME } from '@/config/constants';
 import type { LeagueInfo } from '@/lib/config';
@@ -62,6 +63,16 @@ interface RankedTeam {
 interface ManualSlot {
   teamName: string;
   rosterId?: number;
+}
+
+function cssVars(vars: Record<string, string>): React.CSSProperties {
+  return vars as React.CSSProperties;
+}
+
+function bracketStatusChip(status: string): string {
+  if (status === 'complete') return 'chip chip--gold';
+  if (status === 'in_progress') return 'chip chip--success';
+  return 'chip chip--muted';
 }
 
 function generateLeagueBracket(leagues: LeagueInfo[]): BracketMatchup[] {
@@ -397,72 +408,79 @@ export default function BracketManagerPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <p style={{ color: 'var(--ink-5)', font: '500 var(--fs-13) / 1 var(--font-mono)' }}>Loading&hellip;</p>
       </div>
     );
   }
 
+  const messageTone = message.startsWith('Error') ? 'var(--accent-danger)' : 'var(--accent-live)';
+
   // --- SETUP SCREEN ---
   if (step === 'setup' && !bracket) {
     return (
-      <div className="space-y-6 max-w-2xl">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white">Bracket Manager</h1>
-          <p className="text-text-secondary text-sm mt-1">
+      <div className="col col--lg" style={{ maxWidth: 760 }}>
+        <div className="page-head">
+          <Link href="/admin" className="back-link">&larr; Back to Admin</Link>
+          <h1 className="page-head__title">Bracket Manager</h1>
+          <p className="wiz-panel__sub" style={{ marginTop: 4 }}>
             3-week playoff: league play-in, league championship, then cross-league final.
           </p>
         </div>
 
-        {/* Playoff start week */}
-        <div className="glass-card p-4 flex items-center gap-4 flex-wrap">
-          <label className="text-sm text-text-secondary">Playoff Start Week (NFL):</label>
-          <input
-            type="number"
-            min={1}
-            max={18}
-            value={playoffStartWeek}
-            onChange={(e) => setPlayoffStartWeek(parseInt(e.target.value) || 15)}
-            className="w-20 px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-hidden focus:border-primary"
-          />
-          <span className="text-xs text-text-muted">
-            Needed for auto-pulling scores from Sleeper
-          </span>
+        <div className="wiz-panel">
+          <div className="wiz-panel__head">
+            <h2 className="wiz-panel__title">Playoff Start Week (NFL)</h2>
+          </div>
+          <div className="row">
+            <input
+              type="number"
+              min={1}
+              max={18}
+              value={playoffStartWeek}
+              onChange={(e) => setPlayoffStartWeek(parseInt(e.target.value) || 15)}
+              className="inp inp--mono"
+              style={{ width: 100 }}
+            />
+            <span className="form-hint">Needed for auto-pulling scores from Sleeper</span>
+          </div>
         </div>
 
-        {/* Option 1: Auto-seed */}
-        <div className="glass-card p-6 space-y-4">
-          <h2 className="font-bold text-white">Option 1: Auto-Seed from Rankings</h2>
-          <p className="text-text-secondary text-sm">
+        <div className="wiz-panel">
+          <div className="wiz-panel__head">
+            <h2 className="wiz-panel__title">Option 1: Auto-Seed from Rankings</h2>
+          </div>
+          <p className="wiz-panel__sub">
             Pull the top {qualifiersPerLeague} from each league based on current power rankings. Scores can be auto-pulled from Sleeper.
           </p>
           <button
             onClick={handleSeedFromRankings}
             disabled={!rankings.length}
-            className="px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+            className="btn btn--primary"
+            style={{ alignSelf: 'flex-start' }}
           >
             {rankings.length ? 'Seed from Power Rankings' : 'No Rankings Available'}
           </button>
         </div>
 
-        {/* Option 2: Manual */}
-        <div className="glass-card p-6 space-y-4">
-          <h2 className="font-bold text-white">Option 2: Manual Entry</h2>
-          <p className="text-text-secondary text-sm">
+        <div className="wiz-panel">
+          <div className="wiz-panel__head">
+            <h2 className="wiz-panel__title">Option 2: Manual Entry</h2>
+          </div>
+          <p className="wiz-panel__sub">
             Type in the {totalSlots} playoff team names. Use this for past seasons.
           </p>
           <button
             onClick={() => setStep('manual')}
-            className="px-6 py-2 bg-accent-purple/80 text-white rounded-lg font-semibold hover:bg-accent-purple transition-colors"
+            className="btn"
+            style={{ alignSelf: 'flex-start' }}
           >
             Enter Teams Manually
           </button>
         </div>
 
         {message && (
-          <p className={`text-sm ${message.startsWith('Error') ? 'text-accent-red' : 'text-accent-green'}`}>
-            {message}
-          </p>
+          <p className="form-hint" style={{ color: messageTone, fontSize: 13 }}>{message}</p>
         )}
       </div>
     );
@@ -471,88 +489,98 @@ export default function BracketManagerPage() {
   // --- MANUAL ENTRY SCREEN ---
   if (step === 'manual') {
     return (
-      <div className="space-y-6 max-w-2xl">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white">Manual Bracket Setup</h1>
-          <p className="text-text-secondary text-sm mt-1">
+      <div className="col col--lg" style={{ maxWidth: 760 }}>
+        <div className="page-head">
+          <button
+            onClick={() => { setStep('setup'); setMessage(''); }}
+            className="back-link"
+            style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+          >
+            &larr; Back
+          </button>
+          <h1 className="page-head__title">Manual Bracket Setup</h1>
+          <p className="wiz-panel__sub" style={{ marginTop: 4 }}>
             Enter the top {qualifiersPerLeague} teams from each league in seed order.
           </p>
         </div>
 
-        {/* Season year */}
-        <div className="glass-card p-4">
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-text-secondary">Season Year:</label>
+        <div className="wiz-panel">
+          <div className="wiz-panel__head">
+            <h2 className="wiz-panel__title">Season</h2>
+          </div>
+          <div>
+            <label className="form-label">Season Year</label>
             <input
               type="text"
               value={seasonYear}
               onChange={(e) => setSeasonYear(e.target.value)}
-              className="w-24 px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
+              className="inp inp--mono"
+              style={{ width: 140 }}
             />
           </div>
         </div>
 
-        {/* League entry sections */}
         {leagues.map((league, leagueIdx) => {
           const startIdx = leagueIdx * qualifiersPerLeague;
           return (
-            <div key={league.dbId} className="glass-card p-6 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: league.color }} />
-                <h2 className="font-bold text-white">{league.name} League</h2>
+            <div key={league.dbId} className="subcard" style={cssVars({ '--dot-color': league.color })}>
+              <div className="subcard__head">
+                <div className="subcard__title">
+                  <span className="subcard__dot" />
+                  <span>{league.name} League</span>
+                </div>
               </div>
-              {Array.from({ length: qualifiersPerLeague }, (_, j) => {
-                const i = startIdx + j;
-                const seedNum = j + 1;
-                return (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-text-muted w-6">#{seedNum}</span>
-                    <input
-                      type="text"
-                      value={manualSlots[i]?.teamName ?? ''}
-                      onChange={(e) => {
-                        const updated = [...manualSlots];
-                        updated[i] = { teamName: e.target.value };
-                        setManualSlots(updated);
-                      }}
-                      placeholder={seedNum === 1 ? '#1 seed (bye week 1)' : `#${seedNum} seed`}
-                      className="flex-1 px-3 py-2 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm focus:outline-hidden focus:border-primary"
-                    />
-                    {seedNum === 1 && <span className="text-xs text-accent-gold">BYE</span>}
-                  </div>
-                );
-              })}
+              <div className="col col--sm">
+                {Array.from({ length: qualifiersPerLeague }, (_, j) => {
+                  const i = startIdx + j;
+                  const seedNum = j + 1;
+                  return (
+                    <div key={i} className="row" style={{ alignItems: 'center', gap: 12 }}>
+                      <span style={{ width: 28, color: 'var(--ink-5)', font: '600 var(--fs-13) / 1 var(--font-mono)' }}>
+                        #{seedNum}
+                      </span>
+                      <input
+                        type="text"
+                        value={manualSlots[i]?.teamName ?? ''}
+                        onChange={(e) => {
+                          const updated = [...manualSlots];
+                          updated[i] = { teamName: e.target.value };
+                          setManualSlots(updated);
+                        }}
+                        placeholder={seedNum === 1 ? '#1 seed (bye week 1)' : `#${seedNum} seed`}
+                        className="inp"
+                        style={{ flex: 1 }}
+                      />
+                      {seedNum === 1 && <span className="chip chip--gold">Bye</span>}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
 
-        {/* Bracket explanation */}
-        <div className="glass-card p-4 bg-white/5">
-          <p className="text-xs text-text-muted leading-relaxed">
-            <strong className="text-text-secondary">How the bracket works:</strong><br />
+        <div className="info-panel info-panel--muted">
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>How the bracket works:</div>
+          <div style={{ color: 'var(--ink-6)', lineHeight: 1.6 }}>
             Week 1: #2 vs #3 in each league (#1 seeds on bye)<br />
             Week 2: #1 vs play-in winner in each league (league championship)<br />
             Week 3: {leagues[0]?.name ?? 'League 1'} champ vs {leagues[1]?.name ?? 'League 2'} champ (the big one)
-          </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handleManualCreate}
-            className="px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors"
-          >
+        <div className="row">
+          <button onClick={handleManualCreate} className="btn btn--primary btn--lg">
             Create Bracket
           </button>
           <button
             onClick={() => { setStep('setup'); setMessage(''); }}
-            className="px-4 py-2 text-text-secondary hover:text-white transition-colors text-sm"
+            className="btn btn--ghost"
           >
             Back
           </button>
           {message && (
-            <p className={`text-sm ${message.startsWith('Error') ? 'text-accent-red' : 'text-accent-green'}`}>
-              {message}
-            </p>
+            <span className="form-hint" style={{ color: messageTone, fontSize: 13 }}>{message}</span>
           )}
         </div>
       </div>
@@ -563,9 +591,9 @@ export default function BracketManagerPage() {
 
   // --- MANAGE SCREEN ---
   const roundLabels: Record<number, string> = {
-    1: 'Week 1 — Play-In Round',
-    2: 'Week 2 — League Championships',
-    3: `Week 3 — ${ORG_SHORT_NAME} Championship`,
+    1: 'Week 1 \u2014 Play-In Round',
+    2: 'Week 2 \u2014 League Championships',
+    3: `Week 3 \u2014 ${ORG_SHORT_NAME} Championship`,
   };
 
   const rounds: Record<number, BracketMatchup[]> = {};
@@ -575,53 +603,52 @@ export default function BracketManagerPage() {
   }
   const roundNumbers = Object.keys(rounds).map(Number).sort((a, b) => a - b);
 
+  const statusLabel = bracket.status === 'complete' ? 'Complete' : bracket.status === 'in_progress' ? 'In Progress' : 'Pending';
+
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-extrabold text-white">Bracket Manager</h1>
-        <p className="text-text-secondary text-sm mt-1">
-          {bracket.seasonYear} Season — Enter scores for each week, confirm winners to advance.
+    <div className="col col--lg" style={{ maxWidth: 880 }}>
+      <div className="page-head">
+        <Link href="/admin" className="back-link">&larr; Back to Admin</Link>
+        <h1 className="page-head__title">Bracket Manager</h1>
+        <p className="wiz-panel__sub" style={{ marginTop: 4 }}>
+          {bracket.seasonYear} Season &mdash; Enter scores for each week, confirm winners to advance.
         </p>
       </div>
 
-      {/* Status badge */}
-      <div className="flex items-center gap-2">
-        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-          bracket.status === 'complete'
-            ? 'bg-accent-gold/20 text-accent-gold'
-            : bracket.status === 'in_progress'
-              ? 'bg-accent-green/20 text-accent-green'
-              : 'bg-white/10 text-text-muted'
-        }`}>
-          {bracket.status === 'complete' ? 'Complete' : bracket.status === 'in_progress' ? 'In Progress' : 'Pending'}
-        </span>
+      <div className="row">
+        <span className={bracketStatusChip(bracket.status)}>{statusLabel}</span>
         {bracket.champion && (
-          <span className="text-sm text-accent-gold font-semibold">
+          <span style={{ color: 'var(--accent-clock)', font: '600 var(--fs-13) / 1 var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tr-wide)' }}>
             Champion: {bracket.champion.teamName}
           </span>
         )}
       </div>
 
-      {/* Playoff start week config */}
-      <div className="glass-card p-4 flex items-center gap-4 flex-wrap">
-        <label className="text-sm text-text-secondary">Playoff Start Week (NFL):</label>
-        <input
-          type="number"
-          min={1}
-          max={18}
-          value={bracket.playoffStartWeek ?? playoffStartWeek}
-          onChange={(e) => {
-            const week = parseInt(e.target.value) || 15;
-            setPlayoffStartWeek(week);
-            setBracket({ ...bracket, playoffStartWeek: week });
-          }}
-          className="w-20 px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm stat focus:outline-hidden focus:border-primary"
-        />
-        <span className="text-xs text-text-muted">
-          Week 1 = NFL Wk {bracket.playoffStartWeek ?? playoffStartWeek},
-          Week 2 = NFL Wk {(bracket.playoffStartWeek ?? playoffStartWeek) + 1},
-          Week 3 = NFL Wk {(bracket.playoffStartWeek ?? playoffStartWeek) + 2}
-        </span>
+      {/* Playoff week config */}
+      <div className="wiz-panel">
+        <div className="wiz-panel__head">
+          <h2 className="wiz-panel__title">Playoff Start Week (NFL)</h2>
+        </div>
+        <div className="row">
+          <input
+            type="number"
+            min={1}
+            max={18}
+            value={bracket.playoffStartWeek ?? playoffStartWeek}
+            onChange={(e) => {
+              const week = parseInt(e.target.value) || 15;
+              setPlayoffStartWeek(week);
+              setBracket({ ...bracket, playoffStartWeek: week });
+            }}
+            className="inp inp--mono"
+            style={{ width: 100 }}
+          />
+          <span className="form-hint">
+            Week 1 = NFL Wk {bracket.playoffStartWeek ?? playoffStartWeek},
+            Week 2 = NFL Wk {(bracket.playoffStartWeek ?? playoffStartWeek) + 1},
+            Week 3 = NFL Wk {(bracket.playoffStartWeek ?? playoffStartWeek) + 2}
+          </span>
+        </div>
       </div>
 
       {/* Matchup editor by round */}
@@ -631,134 +658,134 @@ export default function BracketManagerPage() {
         const roundAlreadyDecided = rounds[roundNum].every((m) => m.winningSeed !== null);
 
         return (
-        <div key={roundNum} className="glass-card p-6 space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className={`font-bold ${roundNum === 3 ? 'text-accent-gold' : 'text-white'}`}>
-              {roundLabels[roundNum] || `Round ${roundNum}`}
-              <span className="text-xs text-text-muted font-normal ml-2">(NFL Week {nflWeek})</span>
-            </h2>
-            {roundHasTeams && !roundAlreadyDecided && (
-              <button
-                onClick={() => pullScoresForRound(roundNum)}
-                disabled={pullingScores}
-                className="px-4 py-1.5 bg-primary/20 text-primary rounded-lg text-sm font-semibold hover:bg-primary/30 transition-colors disabled:opacity-50"
-              >
-                {pullingScores ? 'Pulling...' : 'Pull Scores from Sleeper'}
-              </button>
-            )}
-          </div>
-
-          {rounds[roundNum].map((matchup) => {
-            const team1 = getTeamBySeed(matchup.team1Seed);
-            const team2 = getTeamBySeed(matchup.team2Seed);
-            const canSetWinner = matchup.team1Score !== null && matchup.team2Score !== null
-              && matchup.team1Seed !== null && matchup.team2Seed !== null;
-
-            return (
-              <div key={matchup.id} className="p-4 rounded-lg bg-bg-tertiary space-y-3">
-                <p className="text-xs text-text-muted font-semibold">{matchup.label}</p>
-
-                {/* Team 1 */}
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-white truncate">
-                        {team1?.teamName ?? (matchup.team1Seed ? `Seed #${matchup.team1Seed}` : 'TBD')}
-                      </span>
-                      {team1 && (
-                        <span
-                          className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                          style={{ backgroundColor: `${team1.leagueColor}22`, color: team1.leagueColor }}
-                        >
-                          {team1.leagueName}
-                        </span>
-                      )}
-                      {matchup.winningSeed === matchup.team1Seed && matchup.winningSeed !== null && (
-                        <span className="text-accent-green text-xs font-bold">W</span>
-                      )}
-                    </div>
-                  </div>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Score"
-                    value={matchup.team1Score ?? ''}
-                    onChange={(e) => updateMatchupScore(matchup.id, 'team1Score', e.target.value)}
-                    className="w-24 px-3 py-1.5 rounded-sm bg-bg-secondary border border-white/10 text-white text-sm stat focus:outline-hidden focus:border-primary"
-                  />
-                </div>
-
-                {/* Team 2 */}
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-white truncate">
-                        {team2?.teamName ?? (matchup.team2Seed ? `Seed #${matchup.team2Seed}` : 'TBD')}
-                      </span>
-                      {team2 && (
-                        <span
-                          className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                          style={{ backgroundColor: `${team2.leagueColor}22`, color: team2.leagueColor }}
-                        >
-                          {team2.leagueName}
-                        </span>
-                      )}
-                      {matchup.winningSeed === matchup.team2Seed && matchup.winningSeed !== null && (
-                        <span className="text-accent-green text-xs font-bold">W</span>
-                      )}
-                    </div>
-                  </div>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Score"
-                    value={matchup.team2Score ?? ''}
-                    onChange={(e) => updateMatchupScore(matchup.id, 'team2Score', e.target.value)}
-                    className="w-24 px-3 py-1.5 rounded-sm bg-bg-secondary border border-white/10 text-white text-sm stat focus:outline-hidden focus:border-primary"
-                  />
-                </div>
-
-                {/* Confirm winner button */}
-                {matchup.winningSeed === null && (
-                  <button
-                    onClick={() => setMatchupWinner(matchup.id)}
-                    disabled={!canSetWinner}
-                    className="text-sm px-4 py-1.5 bg-accent-green/20 text-accent-green rounded-lg font-semibold hover:bg-accent-green/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    Confirm Winner & Advance
-                  </button>
-                )}
-                {matchup.winningSeed !== null && (
-                  <p className="text-xs text-accent-green">
-                    Winner: {getTeamBySeed(matchup.winningSeed)?.teamName ?? `Seed #${matchup.winningSeed}`}
-                  </p>
-                )}
+          <div key={roundNum} className="wiz-panel">
+            <div className="wiz-panel__head">
+              <div>
+                <h2 className="wiz-panel__title" style={roundNum === 3 ? { color: 'var(--accent-clock)' } : undefined}>
+                  {roundLabels[roundNum] || `Round ${roundNum}`}
+                </h2>
+                <span className="form-hint" style={{ marginLeft: 0, marginTop: 2 }}>(NFL Week {nflWeek})</span>
               </div>
-            );
-          })}
-        </div>
+              {roundHasTeams && !roundAlreadyDecided && (
+                <button
+                  onClick={() => pullScoresForRound(roundNum)}
+                  disabled={pullingScores}
+                  className="btn btn--sm"
+                >
+                  {pullingScores ? 'Pulling\u2026' : 'Pull Scores from Sleeper'}
+                </button>
+              )}
+            </div>
+
+            <div className="col col--sm">
+              {rounds[roundNum].map((matchup) => {
+                const team1 = getTeamBySeed(matchup.team1Seed);
+                const team2 = getTeamBySeed(matchup.team2Seed);
+                const canSetWinner = matchup.team1Score !== null && matchup.team2Score !== null
+                  && matchup.team1Seed !== null && matchup.team2Seed !== null;
+
+                return (
+                  <div key={matchup.id} className="bracket-match">
+                    <div className="bracket-match__label">{matchup.label}</div>
+
+                    {/* Team 1 */}
+                    <div className="bracket-match__team">
+                      <div className="bracket-match__team-info">
+                        <span className={team1 ? 'bracket-match__team-name' : 'bracket-match__team-name bracket-match__team-name--tbd'}>
+                          {team1?.teamName ?? (matchup.team1Seed ? `Seed #${matchup.team1Seed}` : 'TBD')}
+                        </span>
+                        {team1 && (
+                          <span
+                            className="bracket-match__tag"
+                            style={{
+                              backgroundColor: `color-mix(in oklch, ${team1.leagueColor} 18%, transparent)`,
+                              color: team1.leagueColor,
+                            }}
+                          >
+                            {team1.leagueName}
+                          </span>
+                        )}
+                        {matchup.winningSeed === matchup.team1Seed && matchup.winningSeed !== null && (
+                          <span className="bracket-match__win">W</span>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Score"
+                        value={matchup.team1Score ?? ''}
+                        onChange={(e) => updateMatchupScore(matchup.id, 'team1Score', e.target.value)}
+                        className="inp inp--mono bracket-match__score"
+                      />
+                    </div>
+
+                    {/* Team 2 */}
+                    <div className="bracket-match__team">
+                      <div className="bracket-match__team-info">
+                        <span className={team2 ? 'bracket-match__team-name' : 'bracket-match__team-name bracket-match__team-name--tbd'}>
+                          {team2?.teamName ?? (matchup.team2Seed ? `Seed #${matchup.team2Seed}` : 'TBD')}
+                        </span>
+                        {team2 && (
+                          <span
+                            className="bracket-match__tag"
+                            style={{
+                              backgroundColor: `color-mix(in oklch, ${team2.leagueColor} 18%, transparent)`,
+                              color: team2.leagueColor,
+                            }}
+                          >
+                            {team2.leagueName}
+                          </span>
+                        )}
+                        {matchup.winningSeed === matchup.team2Seed && matchup.winningSeed !== null && (
+                          <span className="bracket-match__win">W</span>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Score"
+                        value={matchup.team2Score ?? ''}
+                        onChange={(e) => updateMatchupScore(matchup.id, 'team2Score', e.target.value)}
+                        className="inp inp--mono bracket-match__score"
+                      />
+                    </div>
+
+                    {matchup.winningSeed === null && (
+                      <button
+                        onClick={() => setMatchupWinner(matchup.id)}
+                        disabled={!canSetWinner}
+                        className="btn btn--sm btn--primary"
+                        style={{ alignSelf: 'flex-start' }}
+                      >
+                        Confirm Winner &amp; Advance
+                      </button>
+                    )}
+                    {matchup.winningSeed !== null && (
+                      <div className="bracket-match__winner-note">
+                        Winner: {getTeamBySeed(matchup.winningSeed)?.teamName ?? `Seed #${matchup.winningSeed}`}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         );
       })}
 
       {/* Save + Reset */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save Bracket'}
+      <div className="row">
+        <button onClick={handleSave} disabled={saving} className="btn btn--primary btn--lg">
+          {saving ? 'Saving\u2026' : 'Save Bracket'}
         </button>
         <button
           onClick={() => { setBracket(null); setStep('setup'); setMessage(''); }}
-          className="px-4 py-2 text-text-secondary hover:text-white transition-colors text-sm"
+          className="btn btn--ghost"
         >
           Reset Bracket
         </button>
         {message && (
-          <p className={`text-sm ${message.startsWith('Error') ? 'text-accent-red' : 'text-accent-green'}`}>
-            {message}
-          </p>
+          <span className="form-hint" style={{ color: messageTone, fontSize: 13 }}>{message}</span>
         )}
       </div>
     </div>
