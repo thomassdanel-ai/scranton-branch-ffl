@@ -77,32 +77,23 @@ type ActivityItem = {
   boardId: string;
 };
 
-const posColor: Record<string, string> = {
-  QB: 'text-red-400',
-  RB: 'text-green-400',
-  WR: 'text-blue-400',
-  TE: 'text-yellow-400',
-  K: 'text-purple-400',
-  DEF: 'text-orange-400',
+type StatusVariant = {
+  label: string;
+  chipClass: string;
 };
 
-const posBgColor: Record<string, string> = {
-  QB: 'bg-red-400',
-  RB: 'bg-green-400',
-  WR: 'bg-blue-400',
-  TE: 'bg-yellow-400',
-  K: 'bg-purple-400',
-  DEF: 'bg-orange-400',
-};
-
-const statusConfig: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Not Started', color: 'bg-yellow-500/20 text-yellow-300' },
-  drafting: { label: 'Active', color: 'bg-green-500/20 text-green-300' },
-  paused: { label: 'Paused', color: 'bg-orange-500/20 text-orange-300' },
-  completed: { label: 'Complete', color: 'bg-blue-500/20 text-blue-300' },
+const statusConfig: Record<string, StatusVariant> = {
+  pending:   { label: 'Not Started', chipClass: 'chip chip--clock' },
+  drafting:  { label: 'On Air',      chipClass: 'chip chip--live' },
+  paused:    { label: 'Paused',      chipClass: 'chip chip--danger' },
+  completed: { label: 'Complete',    chipClass: 'chip' },
 };
 
 const ALL_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+
+function cssVars(vars: Record<string, string>): React.CSSProperties {
+  return vars as React.CSSProperties;
+}
 
 export default function SituationRoomPage() {
   const [loading, setLoading] = useState(true);
@@ -303,19 +294,30 @@ export default function SituationRoomPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-text-muted">Loading situation room...</p>
+      <div className="wrap" style={{ paddingTop: 40 }}>
+        <div className="kicker">
+          <span className="kicker__dot" /> Loading situation room
+        </div>
       </div>
     );
   }
 
   if (!season) {
     return (
-      <div className="space-y-4">
-        <Link href="/admin" className="text-primary text-sm hover:underline">&larr; Back</Link>
-        <div className="glass-card p-8 text-center">
-          <h2 className="text-xl font-bold text-white mb-2">No Active Season</h2>
-          <p className="text-text-muted">Start a season and set up drafts to use the Situation Room.</p>
+      <div className="wrap" style={{ paddingTop: 20 }}>
+        <div className="crumb-bar">
+          <Link href="/admin">Command Center</Link>
+          <span className="sep">/</span>
+          <b>Situation Room</b>
+        </div>
+        <div className="admin-empty" style={{ marginTop: 24 }}>
+          <div className="admin-empty__title">No Active Season</div>
+          <p className="admin-empty__desc">
+            Start a season and set up drafts to use the Situation Room.
+          </p>
+          <Link href="/admin" className="btn btn--primary" style={{ marginTop: 8 }}>
+            Back to Command Center
+          </Link>
         </div>
       </div>
     );
@@ -330,64 +332,67 @@ export default function SituationRoomPage() {
     const allEnrolled = summary.enrolled === summary.totalMembers && summary.totalMembers > 0;
 
     return (
-      <div className="space-y-6">
-        <Link href="/admin" className="text-primary text-sm hover:underline">&larr; Back to Command Center</Link>
+      <div className="wrap" style={{ paddingTop: 20, paddingBottom: 60 }}>
+        <div className="crumb-bar">
+          <Link href="/admin">Command Center</Link>
+          <span className="sep">/</span>
+          <b>Situation Room</b>
+          <span className="sep">·</span>
+          <span>Enrollment</span>
+        </div>
 
-        {/* Top Bar */}
-        <div className="glass-card p-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-extrabold text-white">Situation Room</h1>
-              <p className="text-text-muted text-sm">
-                Season {season.season_number} ({season.year}) &middot; Enrollment Phase
-              </p>
+        {/* Head bar */}
+        <div className="sr-head" style={{ marginTop: 20 }}>
+          <div>
+            <h1 className="sr-head__title">Situation Room</h1>
+            <div className="sr-head__sub">
+              Season {season.season_number} ({season.year}) · Enrollment Phase
             </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-white font-mono text-sm">{summary.enrolled}/{summary.totalMembers} enrolled</p>
-                <p className="text-text-muted text-xs">{summary.invited} invited &middot; {summary.pending} pending</p>
-              </div>
-              <div className="w-24 bg-bg-tertiary rounded-full h-3">
-                <div
-                  className="h-3 rounded-full bg-green-500 transition-all"
-                  style={{ width: `${enrollProgress}%` }}
-                />
-              </div>
+          </div>
+          <div className="sr-head__prog">
+            <div>
+              <div className="sr-head__prog-text">{summary.enrolled}/{summary.totalMembers} enrolled</div>
+              <div className="sr-head__prog-sub">{summary.invited} invited · {summary.pending} pending</div>
+            </div>
+            <div className="progress progress--lg" style={{ width: 120 }}>
+              <div className="progress__fill" style={{ width: `${enrollProgress}%` }} />
             </div>
           </div>
         </div>
 
         {/* Status message */}
         {enrollmentMessage && (
-          <div className="glass-card p-3 text-center">
-            <p className="text-sm text-white">{enrollmentMessage}</p>
-          </div>
+          <div className="sr-banner" style={{ marginTop: 14 }}>{enrollmentMessage}</div>
         )}
 
         {/* All enrolled banner */}
         {allEnrolled && (
-          <div className="glass-card p-4 text-center border border-green-500/30 bg-green-500/5">
-            <p className="text-green-300 font-bold text-lg">All members enrolled!</p>
-            <p className="text-text-muted text-sm mt-1">Everyone has joined their Sleeper league. Ready for draft setup.</p>
-            <Link href="/admin/season-setup" className="inline-block mt-3 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors">
+          <div className="sr-banner sr-banner--ok" style={{ marginTop: 14 }}>
+            <div>
+              <strong style={{ fontSize: 'var(--fs-14)' }}>All members enrolled.</strong>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-6)', marginTop: 4 }}>
+                Everyone has joined their Sleeper league. Ready for draft setup.
+              </div>
+            </div>
+            <Link href="/admin/season-setup" className="btn btn--primary btn--sm" style={{ marginLeft: 'auto' }}>
               Continue to Draft Setup
             </Link>
           </div>
         )}
 
         {/* Page-level actions */}
-        <div className="flex items-center gap-2">
+        <div className="row" style={{ marginTop: 16 }}>
           <button
             onClick={() => handleCheckEnrollment()}
             disabled={checkingEnrollment}
-            className="px-3 py-1.5 bg-primary/20 text-primary rounded-lg text-sm font-semibold hover:bg-primary/30 transition-colors disabled:opacity-50"
+            className="btn btn--sm"
           >
-            {checkingEnrollment ? 'Checking...' : 'Check All Leagues'}
+            {checkingEnrollment ? 'Checking…' : 'Check All Leagues'}
           </button>
         </div>
 
         {/* League Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="sr-grid" style={{ marginTop: 16 }}>
           {enrollLeagues.map((league) => {
             const enrolled = league.members.filter((m) => m.enrollmentStatus === 'enrolled').length;
             const total = league.members.length;
@@ -400,58 +405,56 @@ export default function SituationRoomPage() {
             const pendingReminders = league.members.filter((m) => m.inviteSentAt && m.enrollmentStatus !== 'enrolled').length;
 
             return (
-              <div key={league.leagueId} className="glass-card p-4 space-y-3" style={{ borderTop: `3px solid ${league.leagueColor}` }}>
+              <div
+                key={league.leagueId}
+                className="sr-card"
+                style={cssVars({ '--league-color': league.leagueColor })}
+              >
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                  <h3 className="text-white font-bold">{league.leagueName}</h3>
-                  {isLinked && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">Sleeper Linked</span>
-                  )}
+                <div className="sr-card__head">
+                  <div className="sr-card__title">{league.leagueName}</div>
+                  {isLinked && <span className="chip">Sleeper Linked</span>}
                 </div>
 
                 {/* Progress ring */}
-                <div className="flex items-center gap-3">
-                  <div className="relative w-14 h-14">
-                    <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
-                      <path className="text-bg-tertiary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none" stroke="currentColor" strokeWidth="3" />
-                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none" stroke={league.leagueColor} strokeWidth="3"
+                <div className="sr-card__body">
+                  <div className="ring" style={cssVars({ '--ring-color': league.leagueColor })}>
+                    <svg viewBox="0 0 36 36">
+                      <path className="ring__track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none" strokeWidth="3" />
+                      <path className="ring__fill" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none" strokeWidth="3"
                         strokeDasharray={`${progress}, 100`} strokeLinecap="round" />
                     </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-mono font-bold">
-                      {progress}%
-                    </span>
+                    <div className="ring__label">{progress}%</div>
                   </div>
-                  <div>
-                    <p className="text-white font-mono text-sm">{enrolled}/{total} enrolled</p>
-                    {league.lastCheckAt && (
-                      <p className="text-text-muted text-xs">Checked {timeAgo(league.lastCheckAt)}</p>
-                    )}
+                  <div className="sr-card__body-text">
+                    <span className="n">{enrolled}/{total} enrolled</span>
+                    {league.lastCheckAt && <span className="m">Checked {timeAgo(league.lastCheckAt)}</span>}
                   </div>
                 </div>
 
                 {/* Link Sleeper league (if not linked) */}
                 {!isLinked && (
-                  <div className="space-y-2 p-3 rounded-lg bg-bg-tertiary/50">
-                    <p className="text-text-muted text-xs font-semibold uppercase tracking-wider">Link to Sleeper</p>
+                  <div className="enroll-panel">
+                    <div className="enroll-panel__lab">Link to Sleeper</div>
                     <input
                       type="text"
                       value={input.leagueId}
                       onChange={(e) => setLinkInputs((prev) => ({ ...prev, [league.leagueId]: { ...input, leagueId: e.target.value } }))}
                       placeholder="Sleeper League ID or URL"
-                      className="w-full px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-hidden focus:border-primary"
+                      className="inp"
                     />
                     <input
                       type="text"
                       value={input.inviteLink}
                       onChange={(e) => setLinkInputs((prev) => ({ ...prev, [league.leagueId]: { ...input, inviteLink: e.target.value } }))}
-                      placeholder="Sleeper invite link (sleeper.com/i/...)"
-                      className="w-full px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-hidden focus:border-primary"
+                      placeholder="Sleeper invite link (sleeper.com/i/…)"
+                      className="inp"
                     />
                     <button
                       onClick={() => handleLinkLeague(league.leagueId)}
-                      className="w-full px-3 py-1.5 bg-primary text-white rounded-sm text-sm font-semibold hover:bg-primary-dark transition-colors"
+                      className="btn btn--primary btn--sm"
                     >
                       Link League
                     </button>
@@ -460,18 +463,18 @@ export default function SituationRoomPage() {
 
                 {/* Invite link input if linked but no invite link */}
                 {isLinked && !hasInviteLink && (
-                  <div className="space-y-2 p-3 rounded-lg bg-bg-tertiary/50">
-                    <p className="text-text-muted text-xs font-semibold uppercase tracking-wider">Add Invite Link</p>
+                  <div className="enroll-panel">
+                    <div className="enroll-panel__lab">Add Invite Link</div>
                     <input
                       type="text"
                       value={input.inviteLink}
                       onChange={(e) => setLinkInputs((prev) => ({ ...prev, [league.leagueId]: { ...input, inviteLink: e.target.value } }))}
-                      placeholder="Sleeper invite link (sleeper.com/i/...)"
-                      className="w-full px-3 py-1.5 rounded-sm bg-bg-tertiary border border-white/10 text-white text-sm placeholder-text-muted focus:outline-hidden focus:border-primary"
+                      placeholder="Sleeper invite link (sleeper.com/i/…)"
+                      className="inp"
                     />
                     <button
                       onClick={() => handleLinkLeague(league.leagueId)}
-                      className="w-full px-3 py-1.5 bg-primary text-white rounded-sm text-sm font-semibold hover:bg-primary-dark transition-colors"
+                      className="btn btn--primary btn--sm"
                     >
                       Save Link
                     </button>
@@ -480,25 +483,27 @@ export default function SituationRoomPage() {
 
                 {/* Action buttons */}
                 {hasInviteLink && (
-                  <div className="flex gap-2">
+                  <div className="row" style={{ gap: 6 }}>
                     <button
                       onClick={() => handleSendEmails(league.leagueId, 'invite')}
                       disabled={isSending || pendingInvites === 0}
-                      className="flex-1 px-3 py-1.5 bg-green-500/20 text-green-300 rounded-sm text-xs font-semibold hover:bg-green-500/30 transition-colors disabled:opacity-40"
+                      className="btn btn--sm"
+                      style={{ flex: 1 }}
                     >
-                      {isSending ? 'Sending...' : `Send Invites (${pendingInvites})`}
+                      {isSending ? 'Sending…' : `Send Invites (${pendingInvites})`}
                     </button>
                     <button
                       onClick={() => handleSendEmails(league.leagueId, 'reminder')}
                       disabled={isSending || pendingReminders === 0}
-                      className="flex-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-sm text-xs font-semibold hover:bg-yellow-500/30 transition-colors disabled:opacity-40"
+                      className="btn btn--sm"
+                      style={{ flex: 1 }}
                     >
                       Remind ({pendingReminders})
                     </button>
                     <button
                       onClick={() => handleCheckEnrollment(league.leagueId)}
                       disabled={checkingEnrollment}
-                      className="px-3 py-1.5 bg-blue-500/20 text-blue-300 rounded-sm text-xs font-semibold hover:bg-blue-500/30 transition-colors disabled:opacity-40"
+                      className="btn btn--sm"
                     >
                       Check
                     </button>
@@ -506,23 +511,25 @@ export default function SituationRoomPage() {
                 )}
 
                 {/* Member list */}
-                <div className="space-y-1">
+                <div className="mlist">
                   {league.members.map((member) => {
-                    const statusDot = member.enrollmentStatus === 'enrolled'
-                      ? 'bg-green-400' : member.enrollmentStatus === 'invited'
-                      ? 'bg-yellow-400' : 'bg-gray-500';
-                    const statusLabel = member.enrollmentStatus === 'enrolled'
-                      ? 'Enrolled' : member.enrollmentStatus === 'invited'
-                      ? 'Invited' : 'Pending';
+                    const dotClass =
+                      member.enrollmentStatus === 'enrolled' ? 'mlist__dot--enrolled' :
+                      member.enrollmentStatus === 'invited' ? 'mlist__dot--invited' :
+                      'mlist__dot--pending';
+                    const statusLabel =
+                      member.enrollmentStatus === 'enrolled' ? 'Enrolled' :
+                      member.enrollmentStatus === 'invited' ? 'Invited' :
+                      'Pending';
 
                     return (
-                      <div key={member.memberSeasonId} className="flex items-center gap-2 py-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${statusDot}`} />
-                        <span className="text-white text-sm flex-1">{member.name}</span>
+                      <div key={member.memberSeasonId} className="mlist__row">
+                        <div className={`mlist__dot ${dotClass}`} />
+                        <span className="mlist__name">{member.name}</span>
                         {member.sleeperUsername && (
-                          <span className="text-text-muted text-xs">@{member.sleeperUsername}</span>
+                          <span className="mlist__handle">@{member.sleeperUsername}</span>
                         )}
-                        <span className="text-text-muted text-xs">{statusLabel}</span>
+                        <span className="mlist__status">{statusLabel}</span>
                       </div>
                     );
                   })}
@@ -536,7 +543,7 @@ export default function SituationRoomPage() {
   }
 
   // ──────────────────────────────────────────────
-  // DRAFTING PHASE (existing)
+  // DRAFTING PHASE
   // ──────────────────────────────────────────────
   const activeDrafts = drafts.filter((d) => d.status === 'drafting' || d.status === 'paused');
   const totalPicks = drafts.reduce((a, d) => a + d.totalPicks, 0);
@@ -544,60 +551,68 @@ export default function SituationRoomPage() {
   const globalProgress = totalPicks > 0 ? Math.round((totalMade / totalPicks) * 100) : 0;
 
   return (
-    <div className="space-y-6">
-      <Link href="/admin" className="text-primary text-sm hover:underline">&larr; Back to Command Center</Link>
+    <div className="wrap" style={{ paddingTop: 20, paddingBottom: 60 }}>
+      <div className="crumb-bar">
+        <Link href="/admin">Command Center</Link>
+        <span className="sep">/</span>
+        <b>Situation Room</b>
+      </div>
 
-      {/* Top Bar */}
-      <div className="glass-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-extrabold text-white">Situation Room</h1>
-            <p className="text-text-muted text-sm">
-              Season {season.season_number} ({season.year}) &middot;{' '}
-              {activeDrafts.length} of {drafts.length} drafts active &middot;{' '}
-              {globalProgress}% complete
-            </p>
+      {/* Head bar */}
+      <div className="sr-head" style={{ marginTop: 20 }}>
+        <div>
+          <h1 className="sr-head__title">Situation Room</h1>
+          <div className="sr-head__sub">
+            Season {season.season_number} ({season.year}) · {activeDrafts.length} of {drafts.length} drafts active · {globalProgress}% complete
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-24 bg-bg-tertiary rounded-full h-3">
-              <div
-                className="h-3 rounded-full bg-primary transition-all"
-                style={{ width: `${globalProgress}%` }}
-              />
-            </div>
-            <span className="text-white font-mono text-sm">{totalMade}/{totalPicks}</span>
+        </div>
+        <div className="sr-head__prog">
+          <div>
+            <div className="sr-head__prog-text">{totalMade}/{totalPicks}</div>
+            <div className="sr-head__prog-sub">picks made</div>
+          </div>
+          <div className="progress progress--lg" style={{ width: 120 }}>
+            <div className="progress__fill" style={{ width: `${globalProgress}%` }} />
           </div>
         </div>
       </div>
 
       {/* Draft Cards Grid */}
       {drafts.length === 0 ? (
-        <div className="glass-card p-8 text-center">
-          <h2 className="text-lg font-bold text-white mb-2">No Draft Boards</h2>
-          <p className="text-text-muted">Complete the draft setup in the Season Setup Wizard to create draft boards.</p>
+        <div className="admin-empty" style={{ marginTop: 20 }}>
+          <div className="admin-empty__title">No Draft Boards</div>
+          <p className="admin-empty__desc">
+            Complete the draft setup in the Season Setup Wizard to create draft boards.
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="sr-grid" style={{ marginTop: 20 }}>
           {drafts.map((draft) => {
             const progress = draft.totalPicks > 0 ? Math.round((draft.picksMade / draft.totalPicks) * 100) : 0;
-            const cfg = statusConfig[draft.status] || { label: draft.status, color: 'bg-white/10 text-white' };
+            const cfg = statusConfig[draft.status] || { label: draft.status, chipClass: 'chip' };
             const isExpanded = expandedBoard === draft.boardId;
+            const isLive = draft.status === 'drafting';
 
             return (
-              <div key={draft.boardId} className={`glass-card p-4 space-y-3 ${isExpanded ? 'sm:col-span-2' : ''}`} style={{ borderTop: `3px solid ${draft.leagueColor}` }}>
+              <div
+                key={draft.boardId}
+                className={`sr-card ${isExpanded ? 'sr-card--wide' : ''}`}
+                style={cssVars({ '--league-color': draft.leagueColor })}
+              >
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-white font-bold">{draft.leagueName}</h3>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${cfg.color}`}>{cfg.label}</span>
+                <div className="sr-card__head">
+                  <div className="row" style={{ gap: 8 }}>
+                    <div className="sr-card__title">{draft.leagueName}</div>
+                    <span className={cfg.chipClass}>
+                      {isLive && <span className="livedot" />}
+                      {cfg.label}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {draft.sleeperLinked && (
-                      <span className="text-xs text-blue-300">Sleeper</span>
-                    )}
+                  <div className="sr-card__meta">
+                    {draft.sleeperLinked && <span>Sleeper</span>}
                     <button
                       onClick={() => setExpandedBoard(isExpanded ? null : draft.boardId)}
-                      className="text-xs text-primary hover:underline"
+                      className="btn btn--ghost btn--sm"
                     >
                       {isExpanded ? 'Collapse' : 'Expand'}
                     </button>
@@ -605,74 +620,75 @@ export default function SituationRoomPage() {
                 </div>
 
                 {/* Progress */}
-                <div className="flex items-center gap-3">
-                  <div className="relative w-14 h-14">
-                    <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
-                      <path className="text-bg-tertiary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none" stroke="currentColor" strokeWidth="3" />
-                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none" stroke={draft.leagueColor} strokeWidth="3"
+                <div className="sr-card__body">
+                  <div className="ring" style={cssVars({ '--ring-color': draft.leagueColor })}>
+                    <svg viewBox="0 0 36 36">
+                      <path className="ring__track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none" strokeWidth="3" />
+                      <path className="ring__fill" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none" strokeWidth="3"
                         strokeDasharray={`${progress}, 100`} strokeLinecap="round" />
                     </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-mono font-bold">
-                      {progress}%
-                    </span>
+                    <div className="ring__label">{progress}%</div>
                   </div>
-                  <div>
-                    <p className="text-white font-mono text-sm">{draft.picksMade}/{draft.totalPicks} picks</p>
-                    {draft.lastSyncedAt && (
-                      <p className="text-text-muted text-xs">Synced {timeAgo(draft.lastSyncedAt)}</p>
-                    )}
+                  <div className="sr-card__body-text">
+                    <span className="n">{draft.picksMade}/{draft.totalPicks} picks</span>
+                    {draft.lastSyncedAt && <span className="m">Synced {timeAgo(draft.lastSyncedAt)}</span>}
                   </div>
                 </div>
 
                 {/* Current Pick */}
                 {draft.currentPick && (draft.status === 'drafting' || draft.status === 'paused') && (
-                  <div className="bg-bg-tertiary/50 rounded-lg p-2">
-                    <p className="text-text-muted text-xs">On the Clock</p>
-                    <p className="text-white font-semibold text-sm">{draft.currentPick.teamName}</p>
-                    <p className="text-text-muted text-xs">
-                      Round {draft.currentPick.round}, Pick {draft.currentPick.pick}
-                    </p>
+                  <div className="sr-clock">
+                    <span className="sr-clock__lab">
+                      <span className="livedot livedot--clock" /> On the Clock
+                    </span>
+                    <span className="sr-clock__team">{draft.currentPick.teamName}</span>
+                    <span className="sr-clock__pick">Round {draft.currentPick.round} · Pick {draft.currentPick.pick}</span>
                   </div>
                 )}
 
                 {/* Collapsed: show 3 recent picks */}
                 {!isExpanded && draft.recentPicks.length > 0 && (
-                  <div className="space-y-1">
+                  <div className="pick-list">
                     {draft.recentPicks.slice(0, 3).map((pick, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <span className="text-text-muted font-mono w-10">R{pick.round}P{pick.pick}</span>
-                        <span className={`font-semibold ${posColor[pick.position] || 'text-white'}`}>{pick.playerName}</span>
-                        <span className="text-text-muted ml-auto">{pick.teamName}</span>
+                      <div key={i} className="pick-row">
+                        <span className="pick-row__rp">R{pick.round}P{pick.pick}</span>
+                        <span className="pick-row__player pos-text" data-pos={pick.position}>{pick.playerName}</span>
+                        <span className="pick-row__team">{pick.teamName}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Link to full board */}
+                {/* Link to full board (collapsed) */}
                 {!isExpanded && (
-                  <Link href="/admin/draft" className="block text-center text-xs text-primary hover:underline">
-                    Open Full Board
+                  <Link
+                    href="/admin/draft"
+                    className="btn btn--ghost btn--sm"
+                    style={{ justifyContent: 'center' }}
+                  >
+                    Open Full Board →
                   </Link>
                 )}
 
                 {/* EXPANDED VIEW */}
                 {isExpanded && (
-                  <div className="space-y-4 pt-2 border-t border-white/10">
-                    {/* Section 1: Position Distribution Bar */}
+                  <div className="col col--lg" style={{ borderTop: 'var(--hairline)', paddingTop: 12 }}>
+                    {/* Position Distribution Bar */}
                     {Object.keys(draft.positionBreakdown).length > 0 && (
                       <div>
-                        <h4 className="text-text-secondary text-xs font-semibold uppercase tracking-wider mb-2">Position Distribution</h4>
-                        <div className="flex rounded-lg overflow-hidden h-8">
+                        <div className="sr-sub">Position Distribution</div>
+                        <div className="posbar">
                           {ALL_POSITIONS.map((pos) => {
                             const count = draft.positionBreakdown[pos] || 0;
                             if (count === 0) return null;
-                            const pct = (count / draft.picksMade) * 100;
+                            const pct = draft.picksMade > 0 ? (count / draft.picksMade) * 100 : 0;
                             return (
                               <div
                                 key={pos}
-                                className={`${posBgColor[pos] || 'bg-gray-400'} flex items-center justify-center text-xs font-bold text-black/80 transition-all`}
+                                className="posbar__seg pos-bg"
+                                data-pos={pos}
                                 style={{ width: `${pct}%` }}
                                 title={`${pos}: ${count}`}
                               >
@@ -681,12 +697,12 @@ export default function SituationRoomPage() {
                             );
                           })}
                         </div>
-                        <div className="flex gap-3 mt-1">
+                        <div className="posbar__legend">
                           {ALL_POSITIONS.map((pos) => {
                             const count = draft.positionBreakdown[pos] || 0;
                             if (count === 0) return null;
                             return (
-                              <span key={pos} className={`text-xs ${posColor[pos] || 'text-white'}`}>
+                              <span key={pos} className="pos-text" data-pos={pos}>
                                 {pos} {count}
                               </span>
                             );
@@ -695,40 +711,36 @@ export default function SituationRoomPage() {
                       </div>
                     )}
 
-                    {/* Section 2: Team Roster Grid */}
+                    {/* Team Roster Grid */}
                     {draft.teamRosters.length > 0 && (
                       <div>
-                        <h4 className="text-text-secondary text-xs font-semibold uppercase tracking-wider mb-2">Team Rosters</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="sr-sub">Team Rosters</div>
+                        <div className="roster-grid">
                           {draft.teamRosters.map((team) => {
                             const isOnClock = draft.currentPick?.memberSeasonId === team.memberSeasonId &&
                               (draft.status === 'drafting' || draft.status === 'paused');
                             return (
                               <div
                                 key={team.memberSeasonId}
-                                className={`p-3 rounded-lg bg-bg-tertiary/50 space-y-2 ${isOnClock ? 'ring-2 animate-pulse' : ''}`}
-                                style={isOnClock ? { ['--tw-ring-color' as string]: draft.leagueColor } : {}}
+                                className={`roster ${isOnClock ? 'roster--onclock' : ''}`}
+                                style={isOnClock ? cssVars({ '--roster-color': draft.leagueColor }) : undefined}
                               >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-white font-bold text-sm">{team.teamName}</span>
-                                  <span className="text-text-muted text-xs font-mono">
-                                    {team.picks.length}/{draft.numRounds} picks
-                                  </span>
+                                <div className="roster__head">
+                                  <span className="roster__name">{team.teamName}</span>
+                                  <span className="roster__count">{team.picks.length}/{draft.numRounds}</span>
                                 </div>
-                                <div className="flex flex-wrap gap-1">
+                                <div className="roster__pos-summary">
                                   {Object.entries(team.positionCounts).map(([pos, count]) => (
-                                    <span key={pos} className={`text-xs ${posColor[pos] || 'text-white'}`}>
+                                    <span key={pos} className="pos-text" data-pos={pos}>
                                       {count} {pos}
                                     </span>
                                   ))}
                                 </div>
-                                <div className="max-h-32 overflow-y-auto space-y-0.5">
+                                <div className="roster__list">
                                   {team.picks.map((pick, i) => (
-                                    <div key={i} className="flex items-center gap-2 text-xs">
-                                      <span className="text-text-muted font-mono w-10">R{pick.round}P{pick.pick}</span>
-                                      <span className={`font-semibold ${posColor[pick.position] || 'text-white'}`}>
-                                        {pick.playerName}
-                                      </span>
+                                    <div key={i} className="pick-row">
+                                      <span className="pick-row__rp">R{pick.round}P{pick.pick}</span>
+                                      <span className="pick-row__player pos-text" data-pos={pick.position}>{pick.playerName}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -739,26 +751,34 @@ export default function SituationRoomPage() {
                       </div>
                     )}
 
-                    {/* Section 3: League Activity Feed */}
+                    {/* League Activity */}
                     {draft.recentPicks.length > 0 && (
                       <div>
-                        <h4 className="text-text-secondary text-xs font-semibold uppercase tracking-wider mb-2">League Activity</h4>
-                        <div className="space-y-1 max-h-48 overflow-y-auto">
+                        <div className="sr-sub">League Activity</div>
+                        <div className="pick-list" style={{ maxHeight: 220, overflowY: 'auto' }}>
                           {draft.recentPicks.map((pick, i) => (
-                            <div key={i} className="flex items-center gap-2 text-xs py-0.5">
-                              <span className="text-text-muted font-mono w-10">R{pick.round}P{pick.pick}</span>
-                              <span className={`font-semibold ${posColor[pick.position] || 'text-white'}`}>{pick.playerName}</span>
-                              <span className="text-text-muted">{pick.position}</span>
-                              <span className="text-text-muted ml-auto">{pick.teamName}</span>
-                              <span className="text-text-muted">{timeAgo(pick.timestamp)}</span>
+                            <div key={i} className="pick-row">
+                              <span className="pick-row__rp">R{pick.round}P{pick.pick}</span>
+                              <span className="pick-row__player pos-text" data-pos={pick.position}>
+                                {pick.playerName}
+                                <span className="pick-row__pos">{pick.position}</span>
+                              </span>
+                              <span className="pick-row__team">
+                                {pick.teamName}
+                                <span style={{ marginLeft: 8, color: 'var(--ink-5)' }}>{timeAgo(pick.timestamp)}</span>
+                              </span>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    <Link href="/admin/draft" className="block text-center text-xs text-primary hover:underline">
-                      Open Full Board
+                    <Link
+                      href="/admin/draft"
+                      className="btn btn--ghost btn--sm"
+                      style={{ justifyContent: 'center' }}
+                    >
+                      Open Full Board →
                     </Link>
                   </div>
                 )}
@@ -770,67 +790,73 @@ export default function SituationRoomPage() {
 
       {/* Stats Summary Row */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="glass-card p-3">
-            <p className="text-text-muted text-xs">Most Drafted Position</p>
-            <p className="text-white font-bold text-sm">
+        <div className="stat-row" style={{ marginTop: 20 }}>
+          <div className="stat-mini">
+            <div className="stat-mini__lab">Most Drafted Position</div>
+            <div className="stat-mini__val">
               {stats.mostDrafted ? (
-                <><span className={posColor[stats.mostDrafted[0]] || 'text-white'}>{stats.mostDrafted[0]}</span> — {stats.mostDrafted[1]} picks</>
+                <>
+                  <span className="pos-text" data-pos={stats.mostDrafted[0]}>{stats.mostDrafted[0]}</span>
+                  <span className="stat-mini__note" style={{ marginLeft: 6 }}>{stats.mostDrafted[1]} picks</span>
+                </>
               ) : '—'}
-            </p>
+            </div>
           </div>
-          <div className="glass-card p-3">
-            <p className="text-text-muted text-xs">Fastest League</p>
-            <p className="text-white font-bold text-sm">
-              {stats.fastest ? `${stats.fastest.name} — ${stats.fastest.count} picks` : '—'}
-            </p>
+          <div className="stat-mini">
+            <div className="stat-mini__lab">Fastest League</div>
+            <div className="stat-mini__val">
+              {stats.fastest ? `${stats.fastest.name}` : '—'}
+            </div>
+            {stats.fastest && <div className="stat-mini__note">{stats.fastest.count} picks</div>}
           </div>
-          <div className="glass-card p-3">
-            <p className="text-text-muted text-xs">Most Recent Pick</p>
-            <p className="text-white font-bold text-sm">
+          <div className="stat-mini">
+            <div className="stat-mini__lab">Most Recent Pick</div>
+            <div className="stat-mini__val">
               {stats.mostRecent ? (
-                <><span className={posColor[stats.mostRecent.position] || 'text-white'}>{stats.mostRecent.playerName}</span> <span className="text-text-muted font-normal text-xs">{timeAgo(stats.mostRecent.timestamp)}</span></>
+                <span className="pos-text" data-pos={stats.mostRecent.position}>{stats.mostRecent.playerName}</span>
               ) : '—'}
-            </p>
+            </div>
+            {stats.mostRecent && <div className="stat-mini__note">{timeAgo(stats.mostRecent.timestamp)}</div>}
           </div>
-          <div className="glass-card p-3">
-            <p className="text-text-muted text-xs">Picks This Hour</p>
-            <p className="text-white font-bold text-sm">{stats.picksThisHour}</p>
+          <div className="stat-mini">
+            <div className="stat-mini__lab">Picks This Hour</div>
+            <div className="stat-mini__val">{stats.picksThisHour}</div>
           </div>
         </div>
       )}
 
       {/* Unified Activity Feed with Filters */}
       {activity.length > 0 && (
-        <div className="glass-card p-4">
-          <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">All Draft Activity</h3>
+        <div className="card" style={{ marginTop: 20 }}>
+          <div className="card__head" style={{ paddingBottom: 0, borderBottom: 'none' }}>
+            <div className="card__title">All Draft Activity</div>
+          </div>
 
           {/* Filter Bar */}
-          <div className="flex flex-wrap items-center gap-3 mb-3 pb-3 border-b border-white/10">
+          <div className="filter-bar">
             {/* League filters */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-text-muted text-xs mr-1">Leagues:</span>
+            <div className="filter-bar__group">
+              <span className="filter-bar__lab">Leagues</span>
               {drafts.map((d) => (
                 <button
                   key={d.boardId}
                   onClick={() => toggleLeagueFilter(d.boardId)}
-                  className={`w-5 h-5 rounded-full border-2 transition-all ${leagueFilters.has(d.boardId) ? 'opacity-100' : 'opacity-30'}`}
-                  style={{ backgroundColor: d.leagueColor, borderColor: d.leagueColor }}
+                  className={`dotbtn ${leagueFilters.has(d.boardId) ? 'dotbtn--on' : ''}`}
+                  style={cssVars({ '--dot-color': d.leagueColor })}
                   title={d.leagueShortName || d.leagueName}
                 />
               ))}
             </div>
 
             {/* Position filters */}
-            <div className="flex items-center gap-1">
-              <span className="text-text-muted text-xs mr-1">Pos:</span>
+            <div className="filter-bar__group">
+              <span className="filter-bar__lab">Pos</span>
               {ALL_POSITIONS.map((pos) => (
                 <button
                   key={pos}
                   onClick={() => togglePositionFilter(pos)}
-                  className={`text-xs px-1.5 py-0.5 rounded font-semibold transition-all ${
-                    positionFilters.has(pos) ? `${posColor[pos]} bg-white/10` : 'text-text-muted bg-transparent'
-                  }`}
+                  className={`posbtn ${positionFilters.has(pos) ? 'posbtn--on pos-text' : ''}`}
+                  data-pos={positionFilters.has(pos) ? pos : undefined}
                 >
                   {pos}
                 </button>
@@ -838,12 +864,12 @@ export default function SituationRoomPage() {
             </div>
 
             {/* Round filter */}
-            <div className="flex items-center gap-1">
-              <span className="text-text-muted text-xs mr-1">Round:</span>
+            <div className="filter-bar__group">
+              <span className="filter-bar__lab">Round</span>
               <select
                 value={roundFilter ?? ''}
                 onChange={(e) => setRoundFilter(e.target.value ? Number(e.target.value) : null)}
-                className="text-xs px-2 py-0.5 rounded-sm bg-bg-tertiary border border-white/10 text-white"
+                className="sel"
               >
                 <option value="">All</option>
                 {Array.from({ length: maxRounds }, (_, i) => i + 1).map((r) => (
@@ -853,21 +879,25 @@ export default function SituationRoomPage() {
             </div>
           </div>
 
-          <div className="space-y-1.5 max-h-96 overflow-y-auto">
+          {/* Rows */}
+          <div className="act-list">
             {filteredActivity.map((item, i) => (
-              <div key={i} className="flex items-center gap-2 py-1">
-                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.leagueColor }} />
-                <span className="text-text-muted text-xs font-mono w-8">#{item.overall}</span>
-                <span className={`text-xs font-semibold ${posColor[item.position] || 'text-white'}`}>{item.playerName}</span>
-                <span className="text-text-muted text-xs">{item.position}</span>
-                <span className="text-text-muted text-xs ml-auto">{item.teamName}</span>
-                <span className="text-text-muted text-xs">&middot;</span>
-                <span className="text-text-muted text-xs">{item.leagueName}</span>
-                <span className="text-text-muted text-xs">{timeAgo(item.timestamp)}</span>
+              <div key={i} className="act-row">
+                <div className="act-row__dot" style={{ background: item.leagueColor }} />
+                <span className="act-row__overall">#{item.overall}</span>
+                <span className="act-row__player pos-text" data-pos={item.position}>
+                  {item.playerName}
+                  <span className="pick-row__pos">{item.position}</span>
+                </span>
+                <span className="act-row__team">{item.teamName}</span>
+                <span className="act-row__league">{item.leagueShortName || item.leagueName}</span>
+                <span className="act-row__time">{timeAgo(item.timestamp)}</span>
               </div>
             ))}
             {filteredActivity.length === 0 && (
-              <p className="text-text-muted text-xs text-center py-4">No picks match current filters</p>
+              <p style={{ color: 'var(--ink-5)', fontSize: 'var(--fs-12)', textAlign: 'center', padding: '20px 0' }}>
+                No picks match current filters
+              </p>
             )}
           </div>
         </div>
