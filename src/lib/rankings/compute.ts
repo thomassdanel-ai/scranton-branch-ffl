@@ -144,9 +144,85 @@ export async function computePowerRankings(): Promise<RankedTeam[]> {
   return ranked;
 }
 
+type MemberIdentity = {
+  fullName: string | null;
+  displayName: string | null;
+  sleeperDisplayName: string | null;
+};
+
+/**
+ * Build identity lookups for every member_season tied to the given leagues.
+ *
+ * Returns two maps so callers can resolve a result row whether or not it has
+ * member_season_id populated (older rows pre-migration 011 may not):
+ *   1. byId            — member_seasons.id  -> identity
+ *   2. byLeagueRoster  — `${leagues.id}-${sleeper_roster_id}` -> identity
+ */
+async function loadMemberIdentities(leagues: LeagueInfo[]): Promise<{
+  byId: Map<string, MemberIdentity>;
+  byLeagueRoster: Map<string, MemberIdentity>;
+  dbLeagueIdBySleeper: Map<string, string>;
+}> {
+  const byId = new Map<string, MemberIdentity>();
+  const byLeagueRoster = new Map<string, MemberIdentity>();
+  const dbLeagueIdBySleeper = new Map<string, string>();
+
+  for (const l of leagues) {
+    if (l.sleeperId && l.dbId) dbLeagueIdBySleeper.set(l.sleeperId, l.dbId);
+  }
+  if (dbLeagueIdBySleeper.size === 0) {
+    return { byId, byLeagueRoster, dbLeagueIdBySleeper };
+  }
+
+  const supabase = createServiceClient();
+  const { data: rows } = await supabase
+    .from('member_seasons')
+    .select('id, league_id, sleeper_roster_id, sleeper_display_name, members(full_name, display_name)')
+    .in('league_id', Array.from(dbLeagueIdBySleeper.values()));
+
+  if (!rows) return { byId, byLeagueRoster, dbLeagueIdBySleeper };
+
+  for (const row of rows) {
+    const member = row.members as unknown as
+      | { full_name?: string | null; display_name?: string | null }
+      | null;
+    const identity: MemberIdentity = {
+      fullName: member?.full_name ?? null,
+      displayName: member?.display_name ?? null,
+      sleeperDisplayName: row.sleeper_display_name ?? null,
+    };
+    byId.set(row.id, identity);
+    if (row.sleeper_roster_id && row.league_id) {
+      byLeagueRoster.set(`${row.league_id}-${row.sleeper_roster_id}`, identity);
+    }
+  }
+
+  return { byId, byLeagueRoster, dbLeagueIdBySleeper };
+}
+
+export function resolveTeamDisplay(
+  identity: MemberIdentity | undefined,
+  rosterId: number,
+): { displayName: string; teamName?: string } {
+  // PowerRankingsTable renders `team.teamName ?? team.displayName`, so the
+  // friendliest name belongs in displayName and teamName stays undefined
+  // unless we have an additional Sleeper-team-name string to surface.
+  const displayName =
+    identity?.displayName ||
+    identity?.fullName ||
+    identity?.sleeperDisplayName ||
+    `Team ${rosterId}`;
+
+  return { displayName };
+}
+
 /**
  * Get all teams from weekly_results for the current season.
- * Uses the latest week per league to get current standings.
+ * Uses the latest week per league to get current standings, and resolves
+ * each row to a real member identity via member_seasons -> members.
+ *
+ * Historical rows where weekly_results.member_season_id is null are
+ * resolved through (league_id, sleeper_roster_id, season_id).
  */
 async function getAllTeamsFromDatabase(
   seasonId: string,
@@ -154,15 +230,13 @@ async function getAllTeamsFromDatabase(
 ): Promise<{ team: TeamRecord; leagueId: string }[]> {
   const supabase = createServiceClient();
 
-  // Get all weekly_results for this season
   const { data: allResults } = await supabase
     .from('weekly_results')
-    .select('league_id, roster_id, week, season_wins, season_losses, season_ties, season_points_for, season_points_against, streak')
+    .select('league_id, roster_id, week, season_wins, season_losses, season_ties, season_points_for, season_points_against, streak, member_season_id')
     .eq('season_id', seasonId);
 
   if (!allResults || allResults.length === 0) return [];
 
-  // Group by league_id and roster_id, take the latest week for each
   const teamLatestWeek: Record<string, typeof allResults[0]> = {};
   for (const result of allResults) {
     const key = `${result.league_id}-${result.roster_id}`;
@@ -172,14 +246,37 @@ async function getAllTeamsFromDatabase(
     }
   }
 
-  // Convert to the format expected by computePowerRankings
+  const { byId, byLeagueRoster, dbLeagueIdBySleeper } = await loadMemberIdentities(leagues);
+
+  const resolveIdentity = (
+    memberSeasonId: string | null | undefined,
+    sleeperLeagueId: string,
+    rosterId: number,
+  ): MemberIdentity | undefined => {
+    if (memberSeasonId) {
+      const direct = byId.get(memberSeasonId);
+      if (direct) return direct;
+    }
+    const dbLeagueId = dbLeagueIdBySleeper.get(sleeperLeagueId);
+    if (!dbLeagueId) return undefined;
+    return byLeagueRoster.get(`${dbLeagueId}-${String(rosterId)}`);
+  };
+
   const allTeams: { team: TeamRecord; leagueId: string }[] = [];
 
   for (const league of leagues) {
-    // Get unique roster IDs for this league from the latest week
-    const leagueTeams = Object.values(teamLatestWeek).filter((r) => r.league_id === league.sleeperId);
+    const leagueTeams = Object.values(teamLatestWeek).filter(
+      (r) => r.league_id === league.sleeperId,
+    );
 
     for (const teamData of leagueTeams) {
+      const identity = resolveIdentity(
+        teamData.member_season_id,
+        league.sleeperId,
+        teamData.roster_id,
+      );
+      const { displayName, teamName } = resolveTeamDisplay(identity, teamData.roster_id);
+
       allTeams.push({
         team: {
           rosterId: teamData.roster_id,
@@ -189,7 +286,8 @@ async function getAllTeamsFromDatabase(
           pointsFor: parseFloat(String(teamData.season_points_for)) || 0,
           pointsAgainst: parseFloat(String(teamData.season_points_against)) || 0,
           streak: teamData.streak,
-          displayName: `Team ${teamData.roster_id}`,
+          displayName,
+          teamName,
         },
         leagueId: league.sleeperId,
       });

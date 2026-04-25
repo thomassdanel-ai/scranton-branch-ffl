@@ -138,3 +138,14 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vercel
+
+# Generated artifacts that may contain secrets / credentials.
+# These are produced by tooling exports (chat transcripts, source bundles)
+# and must not be committed — exposed keys cannot be invalidated by deletion.
+design-previews/source-bundle/
+**/source-bundle/
+**/chats/chat*.md
+**/conversation-export*.md
+**/conversation-export*.json
+*.session.md
+*.session.json

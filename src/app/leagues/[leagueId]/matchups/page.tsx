@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation';
-import { findLeagueBySleeperIdAsync } from '@/lib/config';
+import { findLeagueBySleeperIdAsync, getSeasonStatus } from '@/lib/config';
 import {
-  getWeekMatchups,
-  getLeagueRosterPositions,
-  getLastPlayedWeek,
-} from '@/lib/sleeper/league-data';
-import { getNFLState } from '@/lib/sleeper/api';
+  getCachedWeekMatchups,
+  getCachedMaxWeek,
+  getCachedRosterPositions,
+  getLatestSnapshotInfo,
+  isSnapshotFresh,
+} from '@/lib/leagues/cached-matchups';
 import { getPlayerLookup } from '@/lib/players/cache';
 import WeekSelector from '@/components/leagues/WeekSelector';
 import MatchupCard from '@/components/leagues/MatchupCard';
@@ -16,22 +17,34 @@ interface Props {
   searchParams: Promise<{ week?: string }>;
 }
 
+// Treat the most recent snapshot as "live" if it was refreshed within this
+// window. The cron writes snapshots every few minutes during game windows.
+const LIVE_SNAPSHOT_WINDOW_MS = 30 * 60 * 1000;
+
 export default async function MatchupsPage(props: Props) {
   const searchParams = await props.searchParams;
   const params = await props.params;
   const league = await findLeagueBySleeperIdAsync(params.leagueId);
   if (!league) notFound();
 
-  const nflState = await getNFLState();
-  const maxWeek =
-    nflState.week > 0 ? nflState.week : await getLastPlayedWeek(params.leagueId);
+  const [seasonStatus, latestSnapshot] = await Promise.all([
+    getSeasonStatus(),
+    getLatestSnapshotInfo(params.leagueId),
+  ]);
+
+  const maxWeek = latestSnapshot?.week ?? (await getCachedMaxWeek(params.leagueId));
   const week = Number(searchParams.week) || maxWeek;
 
-  const isLive = week === nflState.week && nflState.season_type === 'regular';
+  const isLive =
+    week === maxWeek &&
+    !seasonStatus.isOffSeason &&
+    seasonStatus.phase === 'active' &&
+    !!latestSnapshot &&
+    isSnapshotFresh(latestSnapshot.fetchedAt, LIVE_SNAPSHOT_WINDOW_MS);
 
   const [matchups, rosterPositions, playerLookup] = await Promise.all([
-    getWeekMatchups(params.leagueId, week),
-    getLeagueRosterPositions(params.leagueId),
+    getCachedWeekMatchups(params.leagueId, week),
+    getCachedRosterPositions(league.dbId),
     getPlayerLookup(),
   ]);
 

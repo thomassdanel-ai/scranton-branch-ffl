@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { getLeagueRosters, getLeagueUsers } from '@/lib/sleeper/api';
+import { getLeague, getLeagueRosters, getLeagueUsers } from '@/lib/sleeper/api';
 import { requireAuth, AuthError } from '@/lib/auth';
 
 // POST: Link Sleeper league IDs and map rosters to members
@@ -29,11 +29,28 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Update league rows with Sleeper IDs
+  // Update league rows with Sleeper IDs and seed roster_positions so the
+  // public matchups page can render slot labels without calling Sleeper.
+  // The cron sync will continue to refresh roster_positions on each cycle.
   for (const leagueId of Object.keys(leagueLinks)) {
+    const sleeperId = leagueLinks[leagueId];
+    let rosterPositions: string[] | null = null;
+    try {
+      const leagueData = await getLeague(sleeperId);
+      if (Array.isArray(leagueData?.roster_positions)) {
+        rosterPositions = leagueData.roster_positions;
+      }
+    } catch (err) {
+      // Don't block the link operation on a transient Sleeper failure —
+      // the cron will populate roster_positions on the next tick.
+      console.error(`getLeague failed for ${sleeperId}:`, err);
+    }
     await supabase
       .from('leagues')
-      .update({ sleeper_league_id: leagueLinks[leagueId] })
+      .update({
+        sleeper_league_id: sleeperId,
+        ...(rosterPositions !== null ? { roster_positions: rosterPositions } : {}),
+      })
       .eq('id', leagueId);
   }
 

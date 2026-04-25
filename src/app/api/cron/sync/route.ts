@@ -114,28 +114,32 @@ export async function GET(req: NextRequest) {
     const results: Record<string, unknown> = {};
     const now = new Date().toISOString();
 
-    // Fetch all leagues in parallel (Sleeper allows 1000 calls/min)
+    // Fetch all leagues in parallel (Sleeper allows 1000 calls/min).
+    // `getLeague` is included so we can refresh `roster_positions` on the
+    // leagues row — used by the public matchups page to render slot labels.
     const leagueResults = await Promise.allSettled(
       leagues.map(async (league) => {
-        const [rosters, matchups, transactions] = await Promise.all([
+        const [rosters, matchups, transactions, leagueData] = await Promise.all([
           getLeagueRosters(league.sleeperId),
           getMatchups(league.sleeperId, week),
           getTransactions(league.sleeperId, week),
+          getLeague(league.sleeperId),
         ]);
-        return { league, rosters, matchups, transactions };
+        return { league, rosters, matchups, transactions, leagueData };
       })
     );
 
     // Collect rows for batch upsert
     const snapshotRows: Array<Record<string, unknown>> = [];
     const txRows: Array<Record<string, unknown>> = [];
+    const rosterPositionUpdates: Array<{ id: string; roster_positions: string[] }> = [];
 
     for (const result of leagueResults) {
       if (result.status === 'rejected') {
         console.error('League fetch failed:', result.reason);
         continue;
       }
-      const { league, rosters, matchups, transactions } = result.value;
+      const { league, rosters, matchups, transactions, leagueData } = result.value;
 
       snapshotRows.push({
         season_id: seasonId,
@@ -154,6 +158,13 @@ export async function GET(req: NextRequest) {
         fetched_at: now,
       });
 
+      if (Array.isArray(leagueData?.roster_positions)) {
+        rosterPositionUpdates.push({
+          id: league.dbId,
+          roster_positions: leagueData.roster_positions,
+        });
+      }
+
       results[league.sleeperId] = {
         league: league.name,
         week,
@@ -163,7 +174,9 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    // Batch upsert snapshots and transactions in parallel
+    // Batch upsert snapshots and transactions in parallel. Roster-position
+    // refreshes are non-critical (next cron tick retries), so they run
+    // alongside but their errors are logged rather than thrown.
     const [snapshotResult, txResult] = await Promise.all([
       snapshotRows.length > 0
         ? supabase.from('league_snapshots').upsert(snapshotRows, { onConflict: 'league_id,week' })
@@ -175,6 +188,20 @@ export async function GET(req: NextRequest) {
 
     if (snapshotResult.error) throw new Error(`Snapshot batch upsert failed: ${snapshotResult.error.message}`);
     if (txResult.error) throw new Error(`Transactions batch upsert failed: ${txResult.error.message}`);
+
+    if (rosterPositionUpdates.length > 0) {
+      const rosterPositionResults = await Promise.allSettled(
+        rosterPositionUpdates.map((row) =>
+          supabase
+            .from('leagues')
+            .update({ roster_positions: row.roster_positions })
+            .eq('id', row.id),
+        ),
+      );
+      for (const r of rosterPositionResults) {
+        if (r.status === 'rejected') console.error('roster_positions update failed:', r.reason);
+      }
+    }
 
     const autoSaved = await saveCompletedWeeks(supabase, seasonId, week);
 
